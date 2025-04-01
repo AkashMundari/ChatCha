@@ -12,6 +12,7 @@
   "dependencies": {
     "@langchain/core": "^0.3.43",
     "@langchain/groq": "^0.2.0",
+    "@web3-storage/w3up-client": "^17.2.0",
     "dotenv": "^16.4.7",
     "lucide-react": "^0.484.0",
     "react": "^19.0.0",

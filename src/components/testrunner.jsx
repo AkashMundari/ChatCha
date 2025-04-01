@@ -3,10 +3,9 @@ import { Search, Mic, Send, PlusCircle, Globe, Lightbulb } from "lucide-react";
 import { ChatGroq } from "@langchain/groq";
 import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { create } from "@web3-storage/w3up-client";
-// import * as Delegation from "@web3-storage/w3up-client/delegation";
 import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
 
-const ChatInterface1 = () => {
+const PromptEngineerInterface = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -19,6 +18,18 @@ const ChatInterface1 = () => {
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
   const spaceDID = "z6MkjbUgeTkH47g3mmLJz36Ny61MLLkD5KXFNmFWz3vbfws2";
+
+  // Meta-prompt for improving user prompts
+  const metaPrompt = `You are a prompt optimization assistant. Your only job is to reformat and improve user queries to make them more effective for LLMs.
+    
+    Guidelines for reformatting:
+    - Make the prompt clear, specific, and well-structured
+    - Break complex questions into logical parts
+    - Add relevant context if needed
+    - Remove ambiguity
+    - DO NOT answer the query itself
+    - ONLY return the improved prompt text
+    - Preserve the original intent of the query`;
 
   // Initialize the chat model and Storacha client on component mount
   useEffect(() => {
@@ -35,7 +46,7 @@ const ChatInterface1 = () => {
 
     // Load messages from LocalStorage (fallback)
     const storedMessages = JSON.parse(
-      localStorage.getItem("chatMessages") || "[]"
+      localStorage.getItem("promptMessages") || "[]"
     );
     setMessages(storedMessages);
   }, []);
@@ -70,6 +81,7 @@ const ChatInterface1 = () => {
           error
         );
       }
+
       // Instead of using authorize
       setConnectionStatus("Logging in with email...");
       await client.login("avularamswaroop@gmail.com");
@@ -77,10 +89,6 @@ const ChatInterface1 = () => {
       // Then claim the delegations
       setConnectionStatus("Claiming delegations...");
       const delegations = await client.capability.access.claim();
-
-      // // Authorize with email to get delegations
-      // setConnectionStatus("Authorizing with email...");
-      // await client.authorize("avularamswaroop@gmail.com");
 
       console.log("Claimed delegations:", delegations);
 
@@ -108,7 +116,7 @@ const ChatInterface1 = () => {
   // Save messages to LocalStorage whenever messages change
   useEffect(() => {
     const messagesToStore = messages.slice(-50);
-    localStorage.setItem("chatMessages", JSON.stringify(messagesToStore));
+    localStorage.setItem("promptMessages", JSON.stringify(messagesToStore));
   }, [messages]);
 
   // Scroll to bottom when messages update
@@ -124,13 +132,12 @@ const ChatInterface1 = () => {
     }
 
     setIsUploading(true);
-    setUploadStatus("Preparing to upload messages...");
+    setUploadStatus("Preparing to upload prompts...");
 
     try {
       // Create a unique filename with timestamp
       const timestamp = new Date().toISOString();
-
-      const filename = `chat_history_${timestamp}.json`;
+      const filename = `prompt_history_${timestamp}.json`;
 
       // Create a file object with the messages
       const messageBlob = new Blob([JSON.stringify(updatedMessages)], {
@@ -140,13 +147,13 @@ const ChatInterface1 = () => {
         type: "application/json",
       });
 
-      setUploadStatus("Uploading messages to Storacha...");
+      setUploadStatus("Uploading prompts to Storacha...");
 
       // Upload the file to Storacha
       const uploadResult = await storachaClient.uploadFile(file);
 
       console.log(
-        "Messages uploaded successfully with CID:",
+        "Prompts uploaded successfully with CID:",
         uploadResult.toString()
       );
       setSpaceCid(uploadResult.toString());
@@ -154,7 +161,7 @@ const ChatInterface1 = () => {
 
       return uploadResult.toString();
     } catch (error) {
-      console.error("Error uploading messages to Storacha:", error);
+      console.error("Error uploading prompts to Storacha:", error);
       setUploadStatus(`Upload failed: ${error.message}`);
       return null;
     } finally {
@@ -179,12 +186,12 @@ const ChatInterface1 = () => {
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch messages: ${response.status} ${response.statusText}`
+          `Failed to fetch prompts: ${response.status} ${response.statusText}`
         );
       }
 
       const retrievedMessages = await response.json();
-      console.log("Retrieved Messages:", retrievedMessages);
+      console.log("Retrieved Prompts:", retrievedMessages);
 
       if (Array.isArray(retrievedMessages) && retrievedMessages.length > 0) {
         setMessages(retrievedMessages);
@@ -195,15 +202,15 @@ const ChatInterface1 = () => {
         );
       }
     } catch (error) {
-      console.error("Error retrieving messages from Storacha:", error);
-      alert("Failed to retrieve messages. See console for details.");
+      console.error("Error retrieving prompts from Storacha:", error);
+      alert("Failed to retrieve prompts. See console for details.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle sending a message
-  const handleSendMessage = async () => {
+  // Handle improving a prompt
+  const handleImprovePrompt = async () => {
     if (!inputMessage.trim() || !chatModel || isLoading || !isConnected) {
       if (!isConnected) {
         alert("Please wait until connection to Storacha is established");
@@ -226,26 +233,22 @@ const ChatInterface1 = () => {
     setInputMessage("");
 
     try {
-      // Convert previous messages to LangChain format
-      const conversationHistory = messages.map((msg) =>
-        msg.sender === "user"
-          ? new HumanMessage(msg.text)
-          : new AIMessage(msg.text)
-      );
+      // Create the system message with meta-prompt
+      const systemMessage = new HumanMessage(metaPrompt);
 
-      // Prepare the current message
-      const currentMessage = new HumanMessage(inputMessage);
+      // Create the user message with the input prompt to improve
+      const userMessage = new HumanMessage(inputMessage);
 
       // Send message with context
-      const response = await chatModel.invoke([
-        ...conversationHistory,
-        currentMessage,
-      ]);
+      const response = await chatModel.invoke([systemMessage, userMessage]);
+
+      // Extract improved prompt from response
+      let improvedPrompt = response.content;
 
       // Create AI response message
       const aiMessage = {
         id: Date.now() + 1,
-        text: response.content,
+        text: improvedPrompt,
         sender: "bot",
         timestamp: new Date().toISOString(),
       };
@@ -261,14 +264,14 @@ const ChatInterface1 = () => {
         console.warn("Not connected to Storacha, skipping upload");
       }
     } catch (error) {
-      console.error("Error in chat interaction:", error);
+      console.error("Error in improving prompt:", error);
 
       // Add error message
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
-          text: "Sorry, there was an error processing your request.",
+          text: "Sorry, there was an error improving your prompt.",
           sender: "bot",
           timestamp: new Date().toISOString(),
         },
@@ -283,7 +286,7 @@ const ChatInterface1 = () => {
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold">Hey! How's it going?</h1>
+          <h1 className="text-xl font-bold">Prompt Engineering Assistant</h1>
           <p
             className={`text-xs ${
               isConnected
@@ -317,7 +320,7 @@ const ChatInterface1 = () => {
               : "bg-green-600 hover:bg-green-700"
           } p-2 rounded flex items-center`}
         >
-          {isLoading ? "Loading..." : "Retrieve Messages"}
+          {isLoading ? "Loading..." : "Retrieve Prompts"}
         </button>
       </div>
 
@@ -366,25 +369,25 @@ const ChatInterface1 = () => {
           <PlusCircle size={24} />
         </button>
         <div className="flex-grow relative">
-          <input
-            type="text"
+          <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={(e) =>
               e.key === "Enter" &&
+              !e.shiftKey &&
               !isLoading &&
               isConnected &&
-              handleSendMessage()
+              handleImprovePrompt()
             }
             placeholder={
               !isConnected
                 ? "Connecting to Storacha..."
                 : isLoading
                 ? "Please wait..."
-                : "Ask anything"
+                : "Enter your prompt to improve"
             }
             disabled={isLoading || !isConnected}
-            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
+            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-lg focus:outline-none min-h-[80px] ${
               isLoading || !isConnected ? "opacity-50" : ""
             }`}
           />
@@ -398,7 +401,7 @@ const ChatInterface1 = () => {
           </div>
         </div>
         <button
-          onClick={handleSendMessage}
+          onClick={handleImprovePrompt}
           disabled={!inputMessage.trim() || isLoading || !isConnected}
           className={`${
             !inputMessage.trim() || isLoading || !isConnected
@@ -420,4 +423,4 @@ const ChatInterface1 = () => {
   );
 };
 
-export default ChatInterface1;
+export default PromptEngineerInterface;
