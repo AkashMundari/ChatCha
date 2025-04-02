@@ -5,7 +5,7 @@ import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { create } from "@web3-storage/w3up-client";
 import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
 
-const PromptEngineerInterface = () => {
+const ChatInterface2 = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -17,19 +17,20 @@ const PromptEngineerInterface = () => {
   const [uploadStatus, setUploadStatus] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
+  const [currentSpace, setCurrentSpace] = useState(null);
   const spaceDID = "z6MkjbUgeTkH47g3mmLJz36Ny61MLLkD5KXFNmFWz3vbfws2";
 
-  // Meta-prompt for improving user prompts
-  const metaPrompt = `You are a prompt optimization assistant. Your only job is to reformat and improve user queries to make them more effective for LLMs.
-    
-    Guidelines for reformatting:
-    - Make the prompt clear, specific, and well-structured
-    - Break complex questions into logical parts
-    - Add relevant context if needed
-    - Remove ambiguity
-    - DO NOT answer the query itself
-    - ONLY return the improved prompt text
-    - Preserve the original intent of the query`;
+  // Types of AI artifacts that can be stored
+  const artifactTypes = {
+    CHAIN_OF_THOUGHT: "chain_of_thought",
+    CODE_ARTIFACT: "code_artifact",
+    EXECUTION_ARTIFACT: "execution_artifact",
+    MODEL_ARTIFACT: "model_artifact",
+    TRAINING_DATA: "training_data",
+    METADATA: "metadata",
+    ANNOTATIONS: "annotations",
+    MESSAGES: "messages",
+  };
 
   // Initialize the chat model and Storacha client on component mount
   useEffect(() => {
@@ -46,7 +47,7 @@ const PromptEngineerInterface = () => {
 
     // Load messages from LocalStorage (fallback)
     const storedMessages = JSON.parse(
-      localStorage.getItem("promptMessages") || "[]"
+      localStorage.getItem("chatMessages") || "[]"
     );
     setMessages(storedMessages);
   }, []);
@@ -67,45 +68,75 @@ const PromptEngineerInterface = () => {
       // First try to see if we already have access to the space
       try {
         const spaces = await client.spaces();
-        const existingSpace = spaces.find((space) => space.did() === spaceDID);
+        console.log("Available spaces:", spaces);
 
+        let spaceToUse = null;
+
+        // Try to find the specific space by DID
+        const existingSpace = spaces.find((space) => space.did() === spaceDID);
         if (existingSpace) {
-          await client.setCurrentSpace(existingSpace.did());
-          setConnectionStatus("Connected to existing space");
+          spaceToUse = existingSpace;
+          console.log(
+            "Found existing space with matching DID:",
+            existingSpace.did()
+          );
+        }
+        // If no specific space found, use the first available space
+        else if (spaces.length > 0) {
+          spaceToUse = spaces[0];
+          console.log("Using first available space:", spaceToUse.did());
+        }
+
+        if (spaceToUse) {
+          console.log("Setting current space to:", spaceToUse.did());
+          await client.setCurrentSpace(spaceToUse.did());
+          setCurrentSpace(spaceToUse);
+          setConnectionStatus(
+            "Connected to space: " + spaceToUse.did().substring(0, 10) + "..."
+          );
           setIsConnected(true);
           return;
         }
       } catch (error) {
         console.log(
-          "No existing space access, proceeding to authorization...",
+          "Error accessing spaces, proceeding to authorization...",
           error
         );
       }
 
-      // Instead of using authorize
+      // Login with email if we couldn't access existing spaces
       setConnectionStatus("Logging in with email...");
       await client.login("avularamswaroop@gmail.com");
 
-      // Then claim the delegations
+      // Claim delegations after login
       setConnectionStatus("Claiming delegations...");
       const delegations = await client.capability.access.claim();
-
       console.log("Claimed delegations:", delegations);
 
-      // Check if we now have access to the space
-      const spaces = await client.spaces();
-      console.log("Available spaces:", spaces);
+      // Check spaces again after login
+      const spacesAfterLogin = await client.spaces();
+      console.log("Spaces after login:", spacesAfterLogin);
 
-      const targetSpace = spaces[0];
-
-      if (targetSpace) {
-        await client.setCurrentSpace(targetSpace.did());
-        setConnectionStatus("Connected to space");
+      // If no spaces exist after login, create a new one
+      if (spacesAfterLogin.length === 0) {
+        setConnectionStatus("Creating new space...");
+        console.log("No spaces available, creating a new one");
+        const newSpace = await client.createSpace("ai-chat-space");
+        await client.setCurrentSpace(newSpace.did());
+        setCurrentSpace(newSpace);
+        console.log("Created and set new space:", newSpace.did());
+        setConnectionStatus("Created and connected to new space");
         setIsConnected(true);
       } else {
-        throw new Error(
-          "Space not found after claiming delegations. You may need to register this space with your email first."
+        // Use the first available space after login
+        const space = spacesAfterLogin[0];
+        console.log("Using space after login:", space.did());
+        await client.setCurrentSpace(space.did());
+        setCurrentSpace(space);
+        setConnectionStatus(
+          "Connected to space: " + space.did().substring(0, 10) + "..."
         );
+        setIsConnected(true);
       }
     } catch (error) {
       console.error("Error initializing Storacha client:", error);
@@ -113,10 +144,53 @@ const PromptEngineerInterface = () => {
     }
   };
 
+  // Verify space and reconnect if needed
+  const verifySpaceConnection = async () => {
+    if (!storachaClient) {
+      console.error("Storacha client not initialized");
+      return false;
+    }
+
+    try {
+      // Check if current space is set
+      let currentSpaceDid = null;
+      try {
+        currentSpaceDid = await storachaClient.currentSpace().did();
+        console.log("Current space verified:", currentSpaceDid);
+        return true;
+      } catch (error) {
+        console.warn("No current space set, trying to reconnect...", error);
+      }
+
+      // Try to recover by setting space again
+      if (currentSpace) {
+        console.log("Attempting to reconnect to space:", currentSpace.did());
+        await storachaClient.setCurrentSpace(currentSpace.did());
+        return true;
+      }
+
+      // Last resort - get available spaces and use first one
+      const spaces = await storachaClient.spaces();
+      if (spaces.length > 0) {
+        const space = spaces[0];
+        console.log("Reconnecting to first available space:", space.did());
+        await storachaClient.setCurrentSpace(space.did());
+        setCurrentSpace(space);
+        return true;
+      }
+
+      console.error("No spaces available for reconnection");
+      return false;
+    } catch (error) {
+      console.error("Error verifying space connection:", error);
+      return false;
+    }
+  };
+
   // Save messages to LocalStorage whenever messages change
   useEffect(() => {
     const messagesToStore = messages.slice(-50);
-    localStorage.setItem("promptMessages", JSON.stringify(messagesToStore));
+    localStorage.setItem("chatMessages", JSON.stringify(messagesToStore));
   }, [messages]);
 
   // Scroll to bottom when messages update
@@ -124,36 +198,96 @@ const PromptEngineerInterface = () => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Upload messages to Storacha
-  const uploadMessagesToStoracha = async (updatedMessages) => {
+  // Function to extract and classify AI artifacts from response
+  const extractAIArtifacts = (aiResponse) => {
+    // Initialize with basic message content
+    const artifacts = {
+      [artifactTypes.MESSAGES]: aiResponse,
+    };
+
+    // Extract code blocks - simple implementation, can be enhanced
+    const codeRegex = /```([a-z]*)\n([\s\S]*?)```/g;
+    const codeMatches = [...aiResponse.matchAll(codeRegex)];
+
+    if (codeMatches.length > 0) {
+      artifacts[artifactTypes.CODE_ARTIFACT] = codeMatches.map((match) => ({
+        language: match[1] || "text",
+        code: match[2],
+      }));
+    }
+
+    // Check for chain of thought patterns (e.g., "Let me think step by step")
+    if (
+      aiResponse.includes("step by step") ||
+      aiResponse.includes("Let me think") ||
+      (aiResponse.includes("First, ") && aiResponse.includes("Second, ")) ||
+      (aiResponse.includes("1.") && aiResponse.includes("2."))
+    ) {
+      artifacts[artifactTypes.CHAIN_OF_THOUGHT] = aiResponse;
+    }
+
+    // Extract potential metadata
+    const metadata = {
+      timestamp: new Date().toISOString(),
+      modelUsed: "llama-3.3-70b-versatile",
+      responseLength: aiResponse.length,
+    };
+    artifacts[artifactTypes.METADATA] = metadata;
+
+    return artifacts;
+  };
+
+  // Upload AI artifacts to Storacha
+  const uploadArtifactsToStoracha = async (artifacts, conversationId) => {
     if (!storachaClient || !isConnected) {
       console.error("Storacha client not initialized or not connected");
       return null;
     }
 
     setIsUploading(true);
-    setUploadStatus("Preparing to upload prompts...");
+    setUploadStatus("Preparing to upload AI artifacts...");
 
     try {
-      // Create a unique filename with timestamp
+      // Verify space connection before upload
+      const isSpaceVerified = await verifySpaceConnection();
+      if (!isSpaceVerified) {
+        throw new Error("Could not verify space connection before upload");
+      }
+
+      // Create a structured object with all artifact types
+      const artifactData = {
+        id: conversationId || Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        artifacts: artifacts,
+      };
+
+      // Create a unique filename with timestamp and artifact type
       const timestamp = new Date().toISOString();
-      const filename = `prompt_history_${timestamp}.json`;
+      const filename = `ai_artifacts_${timestamp}.json`;
 
-      // Create a file object with the messages
-      const messageBlob = new Blob([JSON.stringify(updatedMessages)], {
+      // Create a file object with the structured artifacts
+      const artifactBlob = new Blob([JSON.stringify(artifactData, null, 2)], {
         type: "application/json",
       });
-      const file = new File([messageBlob], filename, {
+      const file = new File([artifactBlob], filename, {
         type: "application/json",
       });
 
-      setUploadStatus("Uploading prompts to Storacha...");
+      setUploadStatus("Uploading artifacts to Storacha...");
+
+      // Log current space before upload for debugging
+      try {
+        const currentSpaceDid = await storachaClient.currentSpace().did();
+        console.log("Current space before upload:", currentSpaceDid);
+      } catch (error) {
+        console.error("Error getting current space before upload:", error);
+      }
 
       // Upload the file to Storacha
       const uploadResult = await storachaClient.uploadFile(file);
 
       console.log(
-        "Prompts uploaded successfully with CID:",
+        "Artifacts uploaded successfully with CID:",
         uploadResult.toString()
       );
       setSpaceCid(uploadResult.toString());
@@ -161,7 +295,7 @@ const PromptEngineerInterface = () => {
 
       return uploadResult.toString();
     } catch (error) {
-      console.error("Error uploading prompts to Storacha:", error);
+      console.error("Error uploading artifacts to Storacha:", error);
       setUploadStatus(`Upload failed: ${error.message}`);
       return null;
     } finally {
@@ -169,48 +303,8 @@ const PromptEngineerInterface = () => {
     }
   };
 
-  // Retrieve messages from Storacha
-  const retrieveMessagesFromStoracha = async (cid) => {
-    if (!cid) {
-      console.error("No CID provided for retrieval");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const gatewayUrl = `https://${cid}.ipfs.w3s.link`;
-      console.log("Fetching from:", gatewayUrl);
-
-      const response = await fetch(gatewayUrl);
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch prompts: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const retrievedMessages = await response.json();
-      console.log("Retrieved Prompts:", retrievedMessages);
-
-      if (Array.isArray(retrievedMessages) && retrievedMessages.length > 0) {
-        setMessages(retrievedMessages);
-      } else {
-        console.warn(
-          "Retrieved data is not in expected format:",
-          retrievedMessages
-        );
-      }
-    } catch (error) {
-      console.error("Error retrieving prompts from Storacha:", error);
-      alert("Failed to retrieve prompts. See console for details.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle improving a prompt
-  const handleImprovePrompt = async () => {
+  // Handle sending a message
+  const handleSendMessage = async () => {
     if (!inputMessage.trim() || !chatModel || isLoading || !isConnected) {
       if (!isConnected) {
         alert("Please wait until connection to Storacha is established");
@@ -220,8 +314,9 @@ const PromptEngineerInterface = () => {
 
     setIsLoading(true);
 
+    const conversationId = Date.now().toString();
     const newMessage = {
-      id: Date.now(),
+      id: conversationId,
       text: inputMessage,
       sender: "user",
       timestamp: new Date().toISOString(),
@@ -233,22 +328,26 @@ const PromptEngineerInterface = () => {
     setInputMessage("");
 
     try {
-      // Create the system message with meta-prompt
-      const systemMessage = new HumanMessage(metaPrompt);
+      // Convert previous messages to LangChain format
+      const conversationHistory = messages.map((msg) =>
+        msg.sender === "user"
+          ? new HumanMessage(msg.text)
+          : new AIMessage(msg.text)
+      );
 
-      // Create the user message with the input prompt to improve
-      const userMessage = new HumanMessage(inputMessage);
+      // Prepare the current message
+      const currentMessage = new HumanMessage(inputMessage);
 
       // Send message with context
-      const response = await chatModel.invoke([systemMessage, userMessage]);
-
-      // Extract improved prompt from response
-      let improvedPrompt = response.content;
+      const response = await chatModel.invoke([
+        ...conversationHistory,
+        currentMessage,
+      ]);
 
       // Create AI response message
       const aiMessage = {
         id: Date.now() + 1,
-        text: improvedPrompt,
+        text: response.content,
         sender: "bot",
         timestamp: new Date().toISOString(),
       };
@@ -257,21 +356,27 @@ const PromptEngineerInterface = () => {
       const finalMessages = [...updatedMessages, aiMessage];
       setMessages(finalMessages);
 
-      // Upload the complete conversation including the new AI response
+      // Extract and classify AI artifacts from the response
+      const aiArtifacts = extractAIArtifacts(response.content);
+
+      // Add messages to artifacts for comprehensive storage
+      aiArtifacts[artifactTypes.MESSAGES] = finalMessages;
+
+      // Upload the complete set of AI artifacts
       if (isConnected) {
-        await uploadMessagesToStoracha(finalMessages);
+        await uploadArtifactsToStoracha(aiArtifacts, conversationId);
       } else {
         console.warn("Not connected to Storacha, skipping upload");
       }
     } catch (error) {
-      console.error("Error in improving prompt:", error);
+      console.error("Error in chat interaction:", error);
 
       // Add error message
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
-          text: "Sorry, there was an error improving your prompt.",
+          text: "Sorry, there was an error processing your request.",
           sender: "bot",
           timestamp: new Date().toISOString(),
         },
@@ -286,7 +391,7 @@ const PromptEngineerInterface = () => {
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold">Prompt Engineering Assistant</h1>
+          <h1 className="text-xl font-bold">Hey! How's it going?</h1>
           <p
             className={`text-xs ${
               isConnected
@@ -310,18 +415,6 @@ const PromptEngineerInterface = () => {
             <Mic size={20} />
           </button>
         </div>
-        {/* Button to retrieve messages */}
-        <button
-          onClick={() => retrieveMessagesFromStoracha(spaceCid)}
-          disabled={!spaceCid || isLoading || !isConnected}
-          className={`${
-            !spaceCid || isLoading || !isConnected
-              ? "bg-gray-600 cursor-not-allowed"
-              : "bg-green-600 hover:bg-green-700"
-          } p-2 rounded flex items-center`}
-        >
-          {isLoading ? "Loading..." : "Retrieve Prompts"}
-        </button>
       </div>
 
       {/* Messages Container */}
@@ -369,25 +462,25 @@ const PromptEngineerInterface = () => {
           <PlusCircle size={24} />
         </button>
         <div className="flex-grow relative">
-          <textarea
+          <input
+            type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={(e) =>
               e.key === "Enter" &&
-              !e.shiftKey &&
               !isLoading &&
               isConnected &&
-              handleImprovePrompt()
+              handleSendMessage()
             }
             placeholder={
               !isConnected
                 ? "Connecting to Storacha..."
                 : isLoading
                 ? "Please wait..."
-                : "Enter your prompt to improve"
+                : "Ask anything"
             }
             disabled={isLoading || !isConnected}
-            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-lg focus:outline-none min-h-[80px] ${
+            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
               isLoading || !isConnected ? "opacity-50" : ""
             }`}
           />
@@ -401,7 +494,7 @@ const PromptEngineerInterface = () => {
           </div>
         </div>
         <button
-          onClick={handleImprovePrompt}
+          onClick={handleSendMessage}
           disabled={!inputMessage.trim() || isLoading || !isConnected}
           className={`${
             !inputMessage.trim() || isLoading || !isConnected
@@ -423,4 +516,4 @@ const PromptEngineerInterface = () => {
   );
 };
 
-export default PromptEngineerInterface;
+export default ChatInterface2;

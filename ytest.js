@@ -52,3 +52,18 @@ export { improvePrompt };
   console.log("Improved Prompt:");
   console.log(improvedPrompt);
 })();
+
+//2 pm
+/* 
+ 
+first we create  
+we create  a multi agent using langchain x groq
+// frontend
+ 2 hrs 
+ 2 hrs strira
+
+ 8 pm for completion tackling both bounties
+
+april 4 - 6 
+we
+*/

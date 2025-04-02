@@ -18,7 +18,6 @@ const ChatInterface1 = () => {
   const [uploadStatus, setUploadStatus] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
-  const spaceDID = "z6MkjbUgeTkH47g3mmLJz36Ny61MLLkD5KXFNmFWz3vbfws2";
 
   // Initialize the chat model and Storacha client on component mount
   useEffect(() => {
@@ -39,7 +38,6 @@ const ChatInterface1 = () => {
     );
     setMessages(storedMessages);
   }, []);
-
   const initializeStorachaClient = async () => {
     try {
       setConnectionStatus("Creating Storacha client...");
@@ -53,70 +51,57 @@ const ChatInterface1 = () => {
       const agentDID = client.agent.did();
       console.log("Agent DID:", agentDID);
 
-      // First try to see if we already have access to the space
-      try {
-        const spaces = await client.spaces();
-        const existingSpace = spaces.find((space) => space.did() === spaceDID);
-
-        if (existingSpace) {
-          await client.setCurrentSpace(existingSpace.did());
-          setConnectionStatus("Connected to existing space");
-          setIsConnected(true);
-          return;
-        }
-      } catch (error) {
-        console.log(
-          "No existing space access, proceeding to authorization...",
-          error
-        );
-      }
-      // Instead of using authorize
+      // Login with email and get account object
       setConnectionStatus("Logging in with email...");
-      await client.login("avularamswaroop@gmail.com");
+      const account = await client.login("avularamswaroop@gmail.com");
 
-      // Then claim the delegations
+      // Claim delegations
       setConnectionStatus("Claiming delegations...");
       const delegations = await client.capability.access.claim();
-
-      // // Authorize with email to get delegations
-      // setConnectionStatus("Authorizing with email...");
-      // await client.authorize("avularamswaroop@gmail.com");
-
       console.log("Claimed delegations:", delegations);
 
-      // Check if we now have access to the space
-      const spaces = await client.spaces();
-      console.log("Available spaces:", spaces);
+      // try {
+      // Create a unique space name using timestamp
+      const uniqueSpaceName = `my-space-${Date.now()}`;
+      setConnectionStatus(`Creating new space: ${uniqueSpaceName}...`);
 
-      const targetSpace = spaces[0];
-
-      if (targetSpace) {
-        await client.setCurrentSpace(targetSpace.did());
-        setConnectionStatus("Connected to space");
-        setIsConnected(true);
-      } else {
-        throw new Error(
-          "Space not found after claiming delegations. You may need to register this space with your email first."
-        );
+      // Make sure account is properly authenticated before creating space
+      if (!account) {
+        throw new Error("Account not authenticated. Please login first.");
       }
+
+      // Wait for a payment plan if needed
+      await account.plan.wait();
+
+      // Create the space with proper account parameter
+      const space = await client.createSpace(uniqueSpaceName, {
+        account,
+        skipGatewayAuthorization: true,
+      });
+
+      // Set as current space
+      await client.setCurrentSpace(space.did());
+
+      console.log("New space created:", space);
+      setConnectionStatus(`Space "${uniqueSpaceName}" created successfully`);
+      setIsConnected(true);
+      return space;
     } catch (error) {
-      console.error("Error initializing Storacha client:", error);
-      setConnectionStatus(`Connection failed: ${error.message}`);
+      console.error("Error creating space:", error);
+      setConnectionStatus(`Failed to create space: ${error.message}`);
+      throw error;
     }
   };
 
-  // Save messages to LocalStorage whenever messages change
   useEffect(() => {
     const messagesToStore = messages.slice(-50);
     localStorage.setItem("chatMessages", JSON.stringify(messagesToStore));
   }, [messages]);
 
-  // Scroll to bottom when messages update
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Upload messages to Storacha
   const uploadMessagesToStoracha = async (updatedMessages) => {
     if (!storachaClient || !isConnected) {
       console.error("Storacha client not initialized or not connected");
@@ -127,12 +112,9 @@ const ChatInterface1 = () => {
     setUploadStatus("Preparing to upload messages...");
 
     try {
-      // Create a unique filename with timestamp
       const timestamp = new Date().toISOString();
 
       const filename = `chat_history_${timestamp}.json`;
-
-      // Create a file object with the messages
       const messageBlob = new Blob([JSON.stringify(updatedMessages)], {
         type: "application/json",
       });
@@ -142,7 +124,6 @@ const ChatInterface1 = () => {
 
       setUploadStatus("Uploading messages to Storacha...");
 
-      // Upload the file to Storacha
       const uploadResult = await storachaClient.uploadFile(file);
 
       console.log(
@@ -162,7 +143,6 @@ const ChatInterface1 = () => {
     }
   };
 
-  // Retrieve messages from Storacha
   const retrieveMessagesFromStoracha = async (cid) => {
     if (!cid) {
       console.error("No CID provided for retrieval");
@@ -202,7 +182,6 @@ const ChatInterface1 = () => {
     }
   };
 
-  // Handle sending a message
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !chatModel || isLoading || !isConnected) {
       if (!isConnected) {
