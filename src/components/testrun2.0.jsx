@@ -1,841 +1,614 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Lock,
-  Shield,
-  RefreshCw,
-  Info,
-  Award,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { SHA256 } from "crypto-js";
-const FairAIGame = () => {
-  // Game state
-  const [playerChoice, setPlayerChoice] = useState(null);
-  const [aiChoice, setAiChoice] = useState(null);
-  const [result, setResult] = useState("");
-  const [score, setScore] = useState({ player: 0, ai: 0, draws: 0 });
-  const [gameHistory, setGameHistory] = useState([]);
-  const [seed, setSeed] = useState("");
-  const [verificationHash, setVerificationHash] = useState("");
-  const [aiConfidence, setAiConfidence] = useState(3);
-  const [showVerification, setShowVerification] = useState(false);
+import { Search, Mic, Send, PlusCircle, Globe, Lightbulb } from "lucide-react";
+import { ChatGroq } from "@langchain/groq";
+import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import { create } from "@web3-storage/w3up-client";
+import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
+import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
+import { SERPGoogleScholarAPITool } from "@langchain/community/tools/google_scholar";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnableLambda } from "@langchain/core/runnables";
+
+const ChatInterface = () => {
+  const [messages, setMessages] = useState([]);
+  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [timelockExpiry, setTimelockExpiry] = useState(null);
-  const [isTimelocked, setIsTimelocked] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [gameCount, setGameCount] = useState(0);
   const messageEndRef = useRef(null);
+  const [llm, setLlm] = useState(null);
+  const [webSearchTool, setWebSearchTool] = useState(null);
+  const [scholarTool, setScholarTool] = useState(null);
+  const [routerChain, setRouterChain] = useState(null);
+  const [storachaClient, setStorachaClient] = useState(null);
+  const [spaceCid, setSpaceCid] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState("Initializing...");
+  const [isConnected, setIsConnected] = useState(false);
+  const [currentSpace, setCurrentSpace] = useState(null);
 
-  // AI strategy weights
-  const [weights, setWeights] = useState({
-    rock: 33.33,
-    paper: 33.33,
-    scissors: 33.34,
-  });
+  // Artifact types for structured storage
+  const artifactTypes = {
+    INPUT: "input",
+    OUTPUT: "output",
+    METADATA: "metadata",
+    CONVERSATION: "conversation",
+  };
 
-  // Player pattern tracking
-  const [playerPatterns, setPlayerPatterns] = useState({
-    afterWin: { repeat: 0, change: 0 },
-    afterLoss: { repeat: 0, change: 0 },
-    afterDraw: { repeat: 0, change: 0 },
-  });
-
-  const [lastGameResult, setLastGameResult] = useState(null);
-  const [lastPlayerChoice, setLastPlayerChoice] = useState(null);
-
-  // Generate seed for verifiable randomness
+  // Initialize the chat model, tools, and Storacha client on component mount
   useEffect(() => {
-    generateNewSeed();
+    // Initialize AI components
+    initializeAIComponents();
+
+    // Initialize Storacha client
+    initializeStorachaClient();
+
+    // Load messages from LocalStorage (fallback)
+    const storedMessages = JSON.parse(
+      localStorage.getItem("chatMessages") || "[]"
+    );
+    setMessages(storedMessages);
   }, []);
+
+  // Initialize AI components (LLM and tools)
+  const initializeAIComponents = async () => {
+    try {
+      // Initialize ChatGroq model
+      const llmInstance = new ChatGroq({
+        apiKey: "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",
+        model: "qwen-2.5-32b",
+        temperature: 0,
+      });
+      setLlm(llmInstance);
+
+      // Initialize search tools
+      const webSearchToolInstance = new TavilySearchResults({
+        maxResults: 2,
+        apiKey: "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",
+      });
+      setWebSearchTool(webSearchToolInstance);
+
+      const scholarToolInstance = new SERPGoogleScholarAPITool({
+        apiKey:
+          "d033f92170d893fb5f23a0a9753c6d3e2134647cba08c93360828ef375aac527",
+      });
+      setScholarTool(scholarToolInstance);
+
+      // Router prompt that decides which tool to use
+      const routerPrompt = ChatPromptTemplate.fromMessages([
+        [
+          "system",
+          `You are a helpful router assistant that determines which search tool to use for a given query.
+          - For current events, real-time information, weather, news, specific websites, or general web searches, respond with "web".
+          - For encyclopedic knowledge, historical information, definitions, or concepts, respond with "scholar".
+          Respond with just one word: "web" or "scholar".`,
+        ],
+        ["human", "{query}"],
+      ]);
+
+      // Create router chain
+      const routerChainInstance = routerPrompt.pipe(llmInstance);
+      setRouterChain(routerChainInstance);
+
+      console.log("AI components initialized successfully");
+    } catch (error) {
+      console.error("Error initializing AI components:", error);
+    }
+  };
+
+  const initializeStorachaClient = async () => {
+    try {
+      setConnectionStatus("Creating Storacha client...");
+
+      // Create client with memory store to persist delegations
+      const store = new StoreMemory();
+      const client = await create({ store });
+      setStorachaClient(client);
+
+      // Get the agent DID
+      const agentDID = client.agent.did();
+      console.log("Agent DID:", agentDID);
+
+      // Login with email
+      setConnectionStatus("Logging in with email...");
+      await client.login("avularamswaroop@gmail.com");
+
+      // Create a new space with unique name using timestamp
+      const uniqueSpaceName = `chat-space-${Date.now()}`;
+      setConnectionStatus(`Creating new space: ${uniqueSpaceName}...`);
+
+      try {
+        // Create a new space with the unique name
+        const newSpace = await client.createSpace(uniqueSpaceName);
+        console.log("New space created:", newSpace.did());
+
+        // Set the new space as current
+        await client.setCurrentSpace(newSpace.did());
+        setCurrentSpace(newSpace);
+        setConnectionStatus(`Connected to new space: ${uniqueSpaceName}`);
+        setIsConnected(true);
+      } catch (error) {
+        console.error("Error creating new space:", error);
+
+        // Fallback: try to use existing spaces
+        const spaces = await client.spaces();
+        console.log("Available spaces:", spaces);
+
+        if (spaces.length > 0) {
+          const existingSpace = spaces[0];
+          await client.setCurrentSpace(existingSpace.did());
+          setCurrentSpace(existingSpace);
+          setConnectionStatus("Connected to existing space");
+          setIsConnected(true);
+        } else {
+          throw new Error("Could not create or access any space");
+        }
+      }
+    } catch (error) {
+      console.error("Error initializing Storacha client:", error);
+      setConnectionStatus(`Connection failed: ${error.message}`);
+    }
+  };
+
+  // Verify space connection before uploads
+  const verifySpaceConnection = async () => {
+    if (!storachaClient) return false;
+
+    try {
+      // Try to access the current space
+      if (currentSpace) {
+        await storachaClient.setCurrentSpace(currentSpace.did());
+        return true;
+      }
+
+      // Fallback: get available spaces
+      const spaces = await storachaClient.spaces();
+      if (spaces.length > 0) {
+        await storachaClient.setCurrentSpace(spaces[0].did());
+        setCurrentSpace(spaces[0]);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error verifying connection:", error);
+      return false;
+    }
+  };
+
+  // Save messages to LocalStorage whenever messages change
+  useEffect(() => {
+    const messagesToStore = messages.slice(-50);
+    localStorage.setItem("chatMessages", JSON.stringify(messagesToStore));
+  }, [messages]);
 
   // Scroll to bottom when messages update
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [gameHistory]);
+  }, [messages]);
 
-  // Check timelock expiry
-  useEffect(() => {
-    let timer;
-    if (isTimelocked && timelockExpiry) {
-      timer = setInterval(() => {
-        const now = new Date();
-        if (now >= timelockExpiry) {
-          setIsTimelocked(false);
-          clearInterval(timer);
-        }
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [isTimelocked, timelockExpiry]);
+  // Create structured data for storage
+  const createStructuredData = (
+    userMessage,
+    aiResponse,
+    toolUsed,
+    searchResults
+  ) => {
+    const timestamp = new Date().toISOString();
+    const conversationId = `conv-${Date.now()}`;
 
-  const generateNewSeed = () => {
-    // In a production environment, this would call a VRF service like Chainlink or drand
-    const newSeed = Math.floor(Math.random() * 1000000).toString();
-    setSeed(newSeed);
-
-    // Pre-commit to a hash that will determine AI's move
-    // This ensures the AI can't cheat by changing its move after seeing player's choice
-    const preCommitHash = SHA256(newSeed).toString();
-    setVerificationHash(preCommitHash);
-
-    // Set timelock expiry - AI's choice is locked for 5 seconds
-    const expiry = new Date();
-    expiry.setSeconds(expiry.getSeconds() + 5);
-    setTimelockExpiry(expiry);
-    setIsTimelocked(true);
+    return {
+      id: conversationId,
+      timestamp: timestamp,
+      artifacts: {
+        [artifactTypes.INPUT]: {
+          message: userMessage.text,
+          timestamp: userMessage.timestamp,
+          user_id: "anonymous",
+        },
+        [artifactTypes.OUTPUT]: {
+          message: aiResponse.text,
+          timestamp: aiResponse.timestamp,
+          model: "qwen-2.5-32b",
+          tool_used: toolUsed || "none",
+        },
+        [artifactTypes.METADATA]: {
+          conversation_id: conversationId,
+          platform: "web",
+          session_id: `session-${Date.now()}`,
+          request_time: timestamp,
+          response_time: aiResponse.timestamp,
+          completion_tokens: aiResponse.text.length / 4, // Rough estimate
+          prompt_tokens: userMessage.text.length / 4, // Rough estimate
+          total_tokens: (aiResponse.text.length + userMessage.text.length) / 4,
+          search_results: searchResults || null,
+        },
+        [artifactTypes.CONVERSATION]: messages.concat([
+          userMessage,
+          aiResponse,
+        ]),
+      },
+    };
   };
 
-  // Handle player choice
-  const makeChoice = (choice) => {
-    if (playerChoice || isTimelocked) return; // Prevent multiple selections or during timelock
+  // Upload data to Storacha
+  const uploadToStoracha = async (structuredData) => {
+    if (!storachaClient || !isConnected) {
+      console.error("Storacha client not initialized or not connected");
+      return null;
+    }
 
-    setPlayerChoice(choice);
+    setIsUploading(true);
+    setUploadStatus("Preparing to upload data...");
+
+    try {
+      // Verify connection before upload
+      const isSpaceVerified = await verifySpaceConnection();
+      if (!isSpaceVerified) {
+        throw new Error("Could not verify space connection");
+      }
+
+      // Create a unique filename with timestamp
+      const timestamp = new Date().toISOString();
+      const filename = `chat_data_${timestamp}.json`;
+
+      // Create a file object with the structured data
+      const dataBlob = new Blob([JSON.stringify(structuredData, null, 2)], {
+        type: "application/json",
+      });
+      const file = new File([dataBlob], filename, {
+        type: "application/json",
+      });
+
+      setUploadStatus("Uploading data to Storacha...");
+
+      // Upload the file to Storacha
+      const uploadResult = await storachaClient.uploadFile(file);
+
+      console.log(
+        "Data uploaded successfully with CID:",
+        uploadResult.toString()
+      );
+      setSpaceCid(uploadResult.toString());
+      setUploadStatus("Upload complete!");
+
+      return uploadResult.toString();
+    } catch (error) {
+      console.error("Error uploading data to Storacha:", error);
+      setUploadStatus(`Upload failed: ${error.message}`);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Retrieve data from Storacha
+  const retrieveDataFromStoracha = async (cid) => {
+    if (!cid) {
+      console.error("No CID provided for retrieval");
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate network delay for dramatic effect
-    setTimeout(() => {
-      // Generate AI choice using verifiable randomness
-      const aiSelection = generateAiChoice(choice);
-      setAiChoice(aiSelection);
+    try {
+      const gatewayUrl = `https://${cid}.ipfs.w3s.link`;
+      console.log("Fetching from:", gatewayUrl);
 
-      // Determine winner
-      const gameResult = determineWinner(choice, aiSelection);
-      setResult(gameResult);
+      const response = await fetch(gatewayUrl);
 
-      // Update score
-      updateScore(gameResult);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch data: ${response.status} ${response.statusText}`
+        );
+      }
 
-      // Update game history
-      const newGame = {
-        id: gameCount + 1,
-        playerChoice: choice,
-        aiChoice: aiSelection,
-        result: gameResult,
-        seed: seed,
-        verificationHash: verificationHash,
+      const retrievedData = await response.json();
+      console.log("Retrieved Data:", retrievedData);
+
+      if (
+        retrievedData.artifacts &&
+        retrievedData.artifacts[artifactTypes.CONVERSATION]
+      ) {
+        setMessages(retrievedData.artifacts[artifactTypes.CONVERSATION]);
+      } else if (Array.isArray(retrievedData)) {
+        setMessages(retrievedData);
+      } else {
+        console.warn(
+          "Retrieved data is not in expected format:",
+          retrievedData
+        );
+      }
+    } catch (error) {
+      console.error("Error retrieving data from Storacha:", error);
+      alert("Failed to retrieve data. See console for details.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Execute a search using the specified tool
+  const executeSearch = async (query, tool) => {
+    console.log(
+      `Executing search with ${
+        tool === webSearchTool ? "web search" : "scholar"
+      } tool`
+    );
+
+    try {
+      // Direct execution of the tool
+      const searchResult = await tool.invoke(query);
+      console.log("Search result:", searchResult);
+      return searchResult;
+    } catch (error) {
+      console.error(
+        `Error executing ${
+          tool === webSearchTool ? "web search" : "scholar"
+        } tool:`,
+        error
+      );
+      return `Error retrieving information: ${error.message}`;
+    }
+  };
+
+  // Handle sending a message with multi-agent routing
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || isLoading || !isConnected) {
+      if (!isConnected) {
+        alert("Please wait until connection to Storacha is established");
+      }
+      return;
+    }
+
+    if (!llm || !webSearchTool || !scholarTool || !routerChain) {
+      alert(
+        "AI components are still initializing. Please try again in a moment."
+      );
+      return;
+    }
+
+    setIsLoading(true);
+
+    const userMessage = {
+      id: Date.now(),
+      text: inputMessage,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Update messages with user input
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInputMessage("");
+
+    try {
+      // First, determine if we should use a search tool or just the LLM
+      console.log("Determining best agent for query:", inputMessage);
+
+      // Route the message to determine which tool to use
+      const routerDecision = await routerChain.invoke({ query: inputMessage });
+      console.log("Router decision:", routerDecision.content.toLowerCase());
+
+      let response;
+      let toolUsed = "none";
+      let searchResults = null;
+      const toolDecision = routerDecision.content.toLowerCase();
+
+      // Execute the appropriate tool based on the router decision
+      if (toolDecision.includes("web")) {
+        console.log("Using web search tool");
+        toolUsed = "web_search";
+        searchResults = await executeSearch(inputMessage, webSearchTool);
+
+        // Now combine the search results with the question for the LLM
+        const prompt = `Question: ${inputMessage}\n\nSearch Results: ${JSON.stringify(
+          searchResults
+        )}\n\nPlease answer the question based on the search results above.`;
+        const aiResponse = await llm.invoke(prompt);
+        response = aiResponse.content;
+      } else if (toolDecision.includes("scholar")) {
+        console.log("Using scholar tool");
+        toolUsed = "scholar_search";
+        searchResults = await executeSearch(inputMessage, scholarTool);
+
+        // Combine the scholar results with the question
+        const prompt = `Question: ${inputMessage}\n\nScholar Results: ${JSON.stringify(
+          searchResults
+        )}\n\nPlease answer the question based on the scholarly information above.`;
+        const aiResponse = await llm.invoke(prompt);
+        response = aiResponse.content;
+      } else {
+        // Fallback to just using the LLM directly
+        console.log("Using LLM directly");
+        toolUsed = "llm_only";
+        const aiResponse = await llm.invoke(inputMessage);
+        response = aiResponse.content;
+      }
+
+      console.log("AI response:", response);
+
+      // Create AI response message
+      const aiMessage = {
+        id: Date.now() + 1,
+        text: response,
+        sender: "bot",
         timestamp: new Date().toISOString(),
       };
 
-      setGameHistory((prevHistory) => [...prevHistory, newGame]);
-      setGameCount((prevCount) => prevCount + 1);
+      // Update messages with AI response
+      const finalMessages = [...updatedMessages, aiMessage];
+      setMessages(finalMessages);
 
-      // Update AI learning model
-      updateAiModel(choice, gameResult);
+      // Create structured data for storage
+      const structuredData = createStructuredData(
+        userMessage,
+        aiMessage,
+        toolUsed,
+        searchResults
+      );
 
-      // Store last game data for pattern recognition
-      setLastGameResult(gameResult);
-      setLastPlayerChoice(choice);
+      // Upload the structured data
+      if (isConnected) {
+        await uploadToStoracha(structuredData);
+      } else {
+        console.warn("Not connected to Storacha, skipping upload");
+      }
+    } catch (error) {
+      console.error("Error in chat interaction:", error);
 
-      // Generate new seed for next round
-      generateNewSeed();
+      // Add error message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: "Sorry, there was an error processing your request.",
+          sender: "bot",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
-  };
-
-  // Generate AI choice based on learned patterns and verifiable randomness
-  const generateAiChoice = (playerMove) => {
-    // Use the current seed to generate a verifiably random number
-    const randomValue =
-      parseInt(
-        SHA256(seed + playerMove)
-          .toString()
-          .substring(0, 8),
-        16
-      ) % 100;
-
-    // Apply AI strategy based on weights
-    if (randomValue < weights.rock) {
-      return "paper"; // AI counters with paper if predicting rock
-    } else if (randomValue < weights.rock + weights.paper) {
-      return "scissors"; // AI counters with scissors if predicting paper
-    } else {
-      return "rock"; // AI counters with rock if predicting scissors
     }
-  };
-
-  // Determine winner of the round
-  const determineWinner = (player, ai) => {
-    if (player === ai) return "draw";
-    if (
-      (player === "rock" && ai === "scissors") ||
-      (player === "paper" && ai === "rock") ||
-      (player === "scissors" && ai === "paper")
-    ) {
-      return "win";
-    }
-    return "lose";
-  };
-
-  // Update score based on game result
-  const updateScore = (result) => {
-    if (result === "win") {
-      setScore((prev) => ({ ...prev, player: prev.player + 1 }));
-    } else if (result === "lose") {
-      setScore((prev) => ({ ...prev, ai: prev.ai + 1 }));
-    } else {
-      setScore((prev) => ({ ...prev, draws: prev.draws + 1 }));
-    }
-  };
-
-  // Update AI learning model based on player choices and outcomes
-  const updateAiModel = (currentChoice, gameResult) => {
-    // Skip first round when there's no history
-    if (lastGameResult === null) return;
-
-    // Update pattern recognition
-    const newPatterns = { ...playerPatterns };
-
-    if (lastGameResult === "win") {
-      if (currentChoice === lastPlayerChoice) {
-        newPatterns.afterWin.repeat += 1;
-      } else {
-        newPatterns.afterWin.change += 1;
-      }
-    } else if (lastGameResult === "lose") {
-      if (currentChoice === lastPlayerChoice) {
-        newPatterns.afterLoss.repeat += 1;
-      } else {
-        newPatterns.afterLoss.change += 1;
-      }
-    } else {
-      if (currentChoice === lastPlayerChoice) {
-        newPatterns.afterDraw.repeat += 1;
-      } else {
-        newPatterns.afterDraw.change += 1;
-      }
-    }
-
-    setPlayerPatterns(newPatterns);
-
-    // Adjust weights based on observed patterns
-    const newWeights = { ...weights };
-
-    // Increase AI confidence with each game
-    let newConfidence = aiConfidence;
-    if (gameResult === "win") {
-      newConfidence = Math.max(1, aiConfidence - 1);
-    } else if (gameResult === "lose") {
-      newConfidence = Math.min(10, aiConfidence + 1);
-    }
-
-    setAiConfidence(newConfidence);
-
-    // Calculate tendency to repeat after specific outcomes
-    const winRepeatRatio =
-      newPatterns.afterWin.repeat /
-      (newPatterns.afterWin.repeat + newPatterns.afterWin.change || 1);
-    const lossRepeatRatio =
-      newPatterns.afterLoss.repeat /
-      (newPatterns.afterLoss.repeat + newPatterns.afterLoss.change || 1);
-    const drawRepeatRatio =
-      newPatterns.afterDraw.repeat /
-      (newPatterns.afterDraw.repeat + newPatterns.afterDraw.change || 1);
-
-    // Predict next move based on last game result
-    if (lastGameResult === "win") {
-      // If player tends to repeat after winning
-      if (winRepeatRatio > 0.6) {
-        // Adjust weights to counter the predicted repeat
-        if (lastPlayerChoice === "rock") {
-          newWeights.rock = (50 * newConfidence) / 10;
-          newWeights.paper = (25 * (10 - newConfidence)) / 10;
-          newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.paper = (50 * newConfidence) / 10;
-          newWeights.scissors = (25 * (10 - newConfidence)) / 10;
-          newWeights.rock = 100 - newWeights.paper - newWeights.scissors;
-        } else {
-          newWeights.scissors = (50 * newConfidence) / 10;
-          newWeights.rock = (25 * (10 - newConfidence)) / 10;
-          newWeights.paper = 100 - newWeights.scissors - newWeights.rock;
-        }
-      } else if (winRepeatRatio < 0.4) {
-        // If player tends to change after winning
-        if (lastPlayerChoice === "rock") {
-          newWeights.paper = (40 * newConfidence) / 10;
-          newWeights.scissors = (40 * newConfidence) / 10;
-          newWeights.rock = 100 - newWeights.paper - newWeights.scissors;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.rock = (40 * newConfidence) / 10;
-          newWeights.scissors = (40 * newConfidence) / 10;
-          newWeights.paper = 100 - newWeights.rock - newWeights.scissors;
-        } else {
-          newWeights.rock = (40 * newConfidence) / 10;
-          newWeights.paper = (40 * newConfidence) / 10;
-          newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-        }
-      }
-    } else if (lastGameResult === "lose") {
-      // If player tends to change strategy after losing
-      if (lossRepeatRatio < 0.4) {
-        if (lastPlayerChoice === "rock") {
-          newWeights.scissors = (45 * newConfidence) / 10;
-          newWeights.paper = (35 * newConfidence) / 10;
-          newWeights.rock = 100 - newWeights.scissors - newWeights.paper;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.rock = (45 * newConfidence) / 10;
-          newWeights.scissors = (35 * newConfidence) / 10;
-          newWeights.paper = 100 - newWeights.rock - newWeights.scissors;
-        } else {
-          newWeights.paper = (45 * newConfidence) / 10;
-          newWeights.rock = (35 * newConfidence) / 10;
-          newWeights.scissors = 100 - newWeights.paper - newWeights.rock;
-        }
-      } else if (lossRepeatRatio > 0.6) {
-        // If player tends to repeat after losing
-        if (lastPlayerChoice === "rock") {
-          newWeights.rock = (55 * newConfidence) / 10;
-          newWeights.paper = (30 * (10 - newConfidence)) / 10;
-          newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.paper = (55 * newConfidence) / 10;
-          newWeights.scissors = (30 * (10 - newConfidence)) / 10;
-          newWeights.rock = 100 - newWeights.paper - newWeights.scissors;
-        } else {
-          newWeights.scissors = (55 * newConfidence) / 10;
-          newWeights.rock = (30 * (10 - newConfidence)) / 10;
-          newWeights.paper = 100 - newWeights.scissors - newWeights.rock;
-        }
-      }
-    } else if (lastGameResult === "draw") {
-      // Use drawRepeatRatio to adjust strategy after draws
-      if (drawRepeatRatio > 0.6) {
-        // Player tends to repeat after draws
-        if (lastPlayerChoice === "rock") {
-          newWeights.rock = (60 * newConfidence) / 10;
-          newWeights.paper = (25 * (10 - newConfidence)) / 10;
-          newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.paper = (60 * newConfidence) / 10;
-          newWeights.scissors = (25 * (10 - newConfidence)) / 10;
-          newWeights.rock = 100 - newWeights.paper - newWeights.scissors;
-        } else {
-          newWeights.scissors = (60 * newConfidence) / 10;
-          newWeights.rock = (25 * (10 - newConfidence)) / 10;
-          newWeights.paper = 100 - newWeights.scissors - newWeights.rock;
-        }
-      } else if (drawRepeatRatio < 0.4) {
-        // Player tends to change after draws
-        if (lastPlayerChoice === "rock") {
-          newWeights.paper = (45 * newConfidence) / 10;
-          newWeights.scissors = (35 * newConfidence) / 10;
-          newWeights.rock = 100 - newWeights.paper - newWeights.scissors;
-        } else if (lastPlayerChoice === "paper") {
-          newWeights.rock = (45 * newConfidence) / 10;
-          newWeights.scissors = (35 * newConfidence) / 10;
-          newWeights.paper = 100 - newWeights.rock - newWeights.scissors;
-        } else {
-          newWeights.rock = (45 * newConfidence) / 10;
-          newWeights.paper = (35 * newConfidence) / 10;
-          newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-        }
-      }
-    }
-
-    // Ensure weights sum to 100
-    const sum = newWeights.rock + newWeights.paper + newWeights.scissors;
-    newWeights.rock = (newWeights.rock / sum) * 100;
-    newWeights.paper = (newWeights.paper / sum) * 100;
-    newWeights.scissors = 100 - newWeights.rock - newWeights.paper;
-
-    setWeights(newWeights);
-  };
-
-  // Reset game for next round
-  const playAgain = () => {
-    setPlayerChoice(null);
-    setAiChoice(null);
-    setResult("");
-  };
-
-  // Verify the randomness of AI's choice
-  const verifyRandomness = () => {
-    setShowVerification(!showVerification);
-  };
-
-  // Reset the entire game
-  const resetGame = () => {
-    setPlayerChoice(null);
-    setAiChoice(null);
-    setResult("");
-    setScore({ player: 0, ai: 0, draws: 0 });
-    setGameHistory([]);
-    setGameCount(0);
-    setPlayerPatterns({
-      afterWin: { repeat: 0, change: 0 },
-      afterLoss: { repeat: 0, change: 0 },
-      afterDraw: { repeat: 0, change: 0 },
-    });
-    setLastGameResult(null);
-    setLastPlayerChoice(null);
-    setAiConfidence(3);
-    setWeights({
-      rock: 33.33,
-      paper: 33.33,
-      scissors: 33.34,
-    });
-    generateNewSeed();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-gray-900 to-black text-white flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-            Rock Paper Scissors
-          </h1>
-          <h2 className="text-xl text-blue-400">
-            with Verifiable Randomness & Timelock Encryption
-          </h2>
-          <p className="mt-2 text-gray-400">
-            Building a fairer future with AI through cryptographic guarantees
+    <div className="flex flex-col h-screen bg-black text-white">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold">Hey! How's it going?</h1>
+          <p
+            className={`text-xs ${
+              isConnected
+                ? "text-green-400"
+                : connectionStatus.includes("failed")
+                ? "text-red-400"
+                : "text-yellow-400"
+            }`}
+          >
+            {connectionStatus}
           </p>
+          {isUploading && (
+            <p className="text-xs text-gray-400">{uploadStatus}</p>
+          )}
         </div>
-        text
-        <div className="bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-gray-700">
-          <div className="flex justify-between items-center mb-6">
-            <div className="text-center bg-indigo-900 bg-opacity-50 p-3 rounded-lg w-28">
-              <h2 className="text-lg font-semibold">You</h2>
-              <p className="text-3xl font-bold text-blue-400">{score.player}</p>
-            </div>
-
-            <div className="text-center bg-gray-900 bg-opacity-50 p-3 rounded-lg">
-              <h2 className="text-sm font-semibold">Draws</h2>
-              <p className="text-2xl font-bold text-gray-400">{score.draws}</p>
-            </div>
-
-            <div className="text-center bg-indigo-900 bg-opacity-50 p-3 rounded-lg w-28">
-              <h2 className="text-lg font-semibold">AI</h2>
-              <p className="text-3xl font-bold text-purple-400">{score.ai}</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-center mb-6">
-            {" "}
-            {isTimelocked && (
-              <div className="flex items-center text-yellow-400 text-sm mb-3 bg-yellow-900 bg-opacity-20 px-3 py-1 rounded-full">
-                {" "}
-                <Lock size={14} className="mr-1" />{" "}
-                <span>
-                  {" "}
-                  Timelock Active:{" "}
-                  {Math.ceil((timelockExpiry - new Date()) / 1000)}s{" "}
-                </span>{" "}
-              </div>
-            )}{" "}
-            {!isTimelocked && !playerChoice && (
-              <div className="flex items-center text-green-400 text-sm mb-3 bg-green-900 bg-opacity-20 px-3 py-1 rounded-full">
-                {" "}
-                <Shield size={14} className="mr-1" />{" "}
-                <span>Randomness Verified - Ready to Play</span>{" "}
-              </div>
-            )}{" "}
-            <div className="flex justify-center space-x-8 mb-4">
-              {" "}
-              <div className="text-center">
-                {" "}
-                <h3 className="text-lg mb-2">Your Choice</h3>{" "}
-                <div className="h-36 w-36 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded-lg border border-gray-600 shadow-inner">
-                  {" "}
-                  {playerChoice ? (
-                    <div className="text-7xl transform transition-all duration-300 hover:scale-110">
-                      {" "}
-                      {playerChoice === "rock" && "🪨"}{" "}
-                      {playerChoice === "paper" && "📄"}{" "}
-                      {playerChoice === "scissors" && "✂️"}{" "}
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 text-lg">Choose below</span>
-                  )}{" "}
-                </div>{" "}
-              </div>{" "}
-              <div className="text-center">
-                {" "}
-                <h3 className="text-lg mb-2">AI Choice</h3>{" "}
-                <div className="h-36 w-36 flex items-center justify-center bg-gray-700 bg-opacity-50 rounded-lg border border-gray-600 shadow-inner">
-                  {" "}
-                  {aiChoice ? (
-                    <div className="text-7xl transform transition-all duration-300 hover:scale-110">
-                      {" "}
-                      {aiChoice === "rock" && "🪨"}{" "}
-                      {aiChoice === "paper" && "📄"}{" "}
-                      {aiChoice === "scissors" && "✂️"}{" "}
-                    </div>
-                  ) : isLoading ? (
-                    <div className="flex space-x-2">
-                      {" "}
-                      <div className="w-3 h-3 bg-blue-400 rounded-full animate-bounce"></div>{" "}
-                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce delay-100"></div>{" "}
-                      <div className="w-3 h-3 bg-pink-400 rounded-full animate-bounce delay-200"></div>{" "}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      {" "}
-                      <Lock size={24} className="text-yellow-400 mb-2" />{" "}
-                      <span className="text-xs text-yellow-400">
-                        Timelocked
-                      </span>{" "}
-                    </div>
-                  )}{" "}
-                </div>{" "}
-              </div>{" "}
-            </div>
-            {result && (
-              <div className="text-center mb-6 animate-pulse">
-                {" "}
-                <h2 className="text-2xl font-bold">
-                  {" "}
-                  {result === "win" && (
-                    <span className="text-green-400">You Win! 🎉</span>
-                  )}{" "}
-                  {result === "lose" && (
-                    <span className="text-red-400">AI Wins! 🤖</span>
-                  )}{" "}
-                  {result === "draw" && (
-                    <span className="text-yellow-400">It's a Draw! 🤝</span>
-                  )}{" "}
-                </h2>{" "}
-              </div>
-            )}{" "}
-          </div>
-          {!playerChoice ? (
-            <div className="flex flex-col items-center">
-              {" "}
-              <div className="flex justify-center space-x-4 mb-4">
-                {" "}
-                <button
-                  onClick={() => makeChoice("rock")}
-                  disabled={isTimelocked}
-                  className={`${
-                    isTimelocked
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600"
-                  } text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 disabled:transform-none`}
-                >
-                  {" "}
-                  🪨 Rock{" "}
-                </button>{" "}
-                <button
-                  onClick={() => makeChoice("paper")}
-                  disabled={isTimelocked}
-                  className={`${
-                    isTimelocked
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600"
-                  } text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 disabled:transform-none`}
-                >
-                  {" "}
-                  📄 Paper{" "}
-                </button>{" "}
-                <button
-                  onClick={() => makeChoice("scissors")}
-                  disabled={isTimelocked}
-                  className={`${
-                    isTimelocked
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600"
-                  } text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105 disabled:transform-none`}
-                >
-                  {" "}
-                  ✂️ Scissors{" "}
-                </button>{" "}
-              </div>{" "}
-            </div>
-          ) : (
-            <div className="flex justify-center mb-6">
-              {" "}
-              <button
-                onClick={playAgain}
-                className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-bold py-3 px-6 rounded-lg transition duration-200 transform hover:scale-105"
-              >
-                {" "}
-                Play Again{" "}
-              </button>{" "}
-            </div>
-          )}{" "}
-          <div className="flex justify-center space-x-4 mb-4">
-            {" "}
-            <button
-              onClick={verifyRandomness}
-              className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center"
-            >
-              {" "}
-              <Info size={16} className="mr-2" />{" "}
-              {showVerification ? "Hide Verification" : "Verify Randomness"}{" "}
-            </button>
-            <button
-              onClick={resetGame}
-              className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center"
-            >
-              <RefreshCw size={16} className="mr-2" /> Reset Game{" "}
-            </button>{" "}
-          </div>
-          {showVerification && (
-            <div className="bg-gray-900 p-4 rounded-lg text-xs font-mono overflow-auto border border-gray-700 mb-4">
-              {" "}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {" "}
-                <div>
-                  {" "}
-                  <p className="mb-2 text-blue-400">
-                    Current Seed: <span className="text-white">{seed}</span>
-                  </p>{" "}
-                  <p className="mb-2 text-blue-400">
-                    Verification Hash:{" "}
-                    <span className="text-white">
-                      {verificationHash.substring(0, 20)}...
-                    </span>
-                  </p>{" "}
-                  <p className="mb-2 text-blue-400">
-                    AI Confidence Level:{" "}
-                    <span className="text-white">{aiConfidence}/10</span>
-                  </p>{" "}
-                  <div className="mb-2">
-                    {" "}
-                    <p className="text-blue-400">AI Strategy Weights:</p>{" "}
-                    <div className="mt-1 bg-gray-800 rounded p-2">
-                      {" "}
-                      <div className="mb-1">
-                        {" "}
-                        <span>Rock: </span>{" "}
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-blue-500 rounded-full"
-                            style={{ width: `${weights.rock}%` }}
-                          ></div>{" "}
-                        </div>{" "}
-                        <span className="text-xs text-right block">
-                          {weights.rock.toFixed(2)}%
-                        </span>{" "}
-                      </div>{" "}
-                      <div className="mb-1">
-                        {" "}
-                        <span>Paper: </span>{" "}
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-green-500 rounded-full"
-                            style={{ width: `${weights.paper}%` }}
-                          ></div>{" "}
-                        </div>{" "}
-                        <span className="text-xs text-right block">
-                          {weights.paper.toFixed(2)}%
-                        </span>{" "}
-                      </div>{" "}
-                      <div>
-                        {" "}
-                        <span>Scissors: </span>{" "}
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-red-500 rounded-full"
-                            style={{ width: `${weights.scissors}%` }}
-                          ></div>{" "}
-                        </div>{" "}
-                        <span className="text-xs text-right block">
-                          {weights.scissors.toFixed(2)}%
-                        </span>{" "}
-                      </div>{" "}
-                    </div>{" "}
-                  </div>{" "}
-                </div>{" "}
-                <div>
-                  {" "}
-                  <p className="text-purple-400 mb-1">
-                    Player Pattern Analysis:
-                  </p>{" "}
-                  <div className="bg-gray-800 rounded p-2">
-                    {" "}
-                    <div className="mb-2">
-                      {" "}
-                      <p className="text-sm">After Win:</p>{" "}
-                      <div className="flex justify-between text-xs">
-                        {" "}
-                        <span>
-                          Repeat: {playerPatterns.afterWin.repeat}
-                        </span>{" "}
-                        <span>Change: {playerPatterns.afterWin.change}</span>{" "}
-                      </div>{" "}
-                      {playerPatterns.afterWin.repeat +
-                        playerPatterns.afterWin.change >
-                        0 && (
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-green-500 rounded-full"
-                            style={{
-                              width: `${
-                                (playerPatterns.afterWin.repeat /
-                                  (playerPatterns.afterWin.repeat +
-                                    playerPatterns.afterWin.change)) *
-                                100
-                              }%`,
-                            }}
-                          ></div>{" "}
-                        </div>
-                      )}{" "}
-                    </div>{" "}
-                    <div className="mb-2">
-                      {" "}
-                      <p className="text-sm">After Loss:</p>{" "}
-                      <div className="flex justify-between text-xs">
-                        {" "}
-                        <span>
-                          Repeat: {playerPatterns.afterLoss.repeat}
-                        </span>{" "}
-                        <span>Change: {playerPatterns.afterLoss.change}</span>{" "}
-                      </div>{" "}
-                      {playerPatterns.afterLoss.repeat +
-                        playerPatterns.afterLoss.change >
-                        0 && (
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-red-500 rounded-full"
-                            style={{
-                              width: `${
-                                (playerPatterns.afterLoss.repeat /
-                                  (playerPatterns.afterLoss.repeat +
-                                    playerPatterns.afterLoss.change)) *
-                                100
-                              }%`,
-                            }}
-                          ></div>{" "}
-                        </div>
-                      )}{" "}
-                    </div>{" "}
-                    <div>
-                      {" "}
-                      <p className="text-sm">After Draw:</p>{" "}
-                      <div className="flex justify-between text-xs">
-                        {" "}
-                        <span>
-                          Repeat: {playerPatterns.afterDraw.repeat}
-                        </span>{" "}
-                        <span>Change: {playerPatterns.afterDraw.change}</span>{" "}
-                      </div>{" "}
-                      {playerPatterns.afterDraw.repeat +
-                        playerPatterns.afterDraw.change >
-                        0 && (
-                        <div className="h-2 w-full bg-gray-700 rounded-full mt-1">
-                          {" "}
-                          <div
-                            className="h-full bg-yellow-500 rounded-full"
-                            style={{
-                              width: `${
-                                (playerPatterns.afterDraw.repeat /
-                                  (playerPatterns.afterDraw.repeat +
-                                    playerPatterns.afterDraw.change)) *
-                                100
-                              }%`,
-                            }}
-                          ></div>{" "}
-                        </div>
-                      )}{" "}
-                    </div>{" "}
-                  </div>{" "}
-                </div>{" "}
-              </div>{" "}
-            </div>
-          )}{" "}
-          <div className="mt-4">
-            {" "}
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center justify-between w-full bg-gray-800 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-            >
-              {" "}
-              <div className="flex items-center">
-                {" "}
-                <Award size={18} className="mr-2 text-blue-400" />{" "}
-                <span className="font-semibold">Game History</span>{" "}
-              </div>{" "}
-              {showHistory ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}{" "}
-            </button>
-            {showHistory && (
-              <div className="mt-2 bg-gray-800 bg-opacity-60 rounded-lg p-4 overflow-auto max-h-60">
-                {gameHistory.length === 0 ? (
-                  <p className="text-gray-400 text-center">
-                    No games played yet
-                  </p>
-                ) : (
-                  <table className="w-full text-sm">
-                    {" "}
-                    <thead>
-                      {" "}
-                      <tr className="bg-gray-700 bg-opacity-60">
-                        {" "}
-                        <th className="p-2 text-left">Round</th>{" "}
-                        <th className="p-2 text-left">Your Move</th>{" "}
-                        <th className="p-2 text-left">AI Move</th>{" "}
-                        <th className="p-2 text-left">Result</th>{" "}
-                        <th className="p-2 text-left">Seed</th>{" "}
-                      </tr>{" "}
-                    </thead>{" "}
-                    <tbody>
-                      {" "}
-                      {gameHistory.map((game, index) => (
-                        <tr
-                          key={index}
-                          className={
-                            index % 2 === 0
-                              ? "bg-gray-800"
-                              : "bg-gray-700 bg-opacity-40"
-                          }
-                        >
-                          {" "}
-                          <td className="p-2">{game.id}</td>{" "}
-                          <td className="p-2">
-                            {" "}
-                            {game.playerChoice === "rock" && "🪨"}{" "}
-                            {game.playerChoice === "paper" && "📄"}{" "}
-                            {game.playerChoice === "scissors" && "✂️"}{" "}
-                          </td>{" "}
-                          <td className="p-2">
-                            {" "}
-                            {game.aiChoice === "rock" && "🪨"}{" "}
-                            {game.aiChoice === "paper" && "📄"}{" "}
-                            {game.aiChoice === "scissors" && "✂️"}{" "}
-                          </td>{" "}
-                          <td className="p-2">
-                            {" "}
-                            {game.result === "win" && (
-                              <span className="text-green-400">Win</span>
-                            )}{" "}
-                            {game.result === "lose" && (
-                              <span className="text-red-400">Loss</span>
-                            )}{" "}
-                            {game.result === "draw" && (
-                              <span className="text-yellow-400">Draw</span>
-                            )}{" "}
-                          </td>{" "}
-                          <td className="p-2 text-xs font-mono">
-                            {game.seed.substring(0, 8)}...
-                          </td>{" "}
-                        </tr>
-                      ))}{" "}
-                    </tbody>{" "}
-                  </table>
-                )}
-              </div>
-            )}{" "}
-          </div>
-          <div className="mt-6 text-center text-sm text-gray-400">
-            {" "}
-            <p>
-              This game uses verifiable randomness and timelock encryption to
-              ensure fair play.
-            </p>{" "}
-            <p>Built for Randamu Bounty Challenge - March 2025</p>
-          </div>
+        <div className="flex space-x-4">
+          <button className="hover:bg-gray-800 p-2 rounded">
+            <Search size={20} />
+          </button>
+          <button className="hover:bg-gray-800 p-2 rounded">
+            <Mic size={20} />
+          </button>
         </div>
+        {/* Button to retrieve messages */}
+        <button
+          onClick={() => retrieveDataFromStoracha(spaceCid)}
+          disabled={!spaceCid || isLoading || !isConnected}
+          className={`${
+            !spaceCid || isLoading || !isConnected
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-green-600 hover:bg-green-700"
+          } p-2 rounded flex items-center`}
+        >
+          {isLoading ? "Loading..." : "Retrieve Messages"}
+        </button>
       </div>
+
+      {/* Messages Container */}
+      <div className="flex-grow overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${
+              message.sender === "user" ? "justify-end" : "justify-start"
+            }`}
+          >
+            <div
+              className={`max-w-[70%] p-3 rounded-lg ${
+                message.sender === "user"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-white"
+              }`}
+            >
+              {message.text}
+              {message.timestamp && (
+                <div className="text-xs opacity-70 mt-1">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-800 text-white p-3 rounded-lg">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messageEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 border-t border-gray-800 flex items-center space-x-2">
+        <button className="hover:bg-gray-800 p-2 rounded">
+          <PlusCircle size={24} />
+        </button>
+        <div className="flex-grow relative">
+          <input
+            type="text"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={(e) =>
+              e.key === "Enter" &&
+              !isLoading &&
+              isConnected &&
+              handleSendMessage()
+            }
+            placeholder={
+              !isConnected
+                ? "Connecting to Storacha..."
+                : isLoading
+                ? "Please wait..."
+                : "Ask anything"
+            }
+            disabled={isLoading || !isConnected}
+            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
+              isLoading || !isConnected ? "opacity-50" : ""
+            }`}
+          />
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex space-x-2">
+            <button className="hover:bg-gray-700 p-1 rounded">
+              <Globe size={20} />
+            </button>
+            <button className="hover:bg-gray-700 p-1 rounded">
+              <Lightbulb size={20} />
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={handleSendMessage}
+          disabled={!inputMessage.trim() || isLoading || !isConnected}
+          className={`${
+            !inputMessage.trim() || isLoading || !isConnected
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          } p-2 rounded-full`}
+        >
+          <Send size={20} />
+        </button>
+      </div>
+
+      {/* Display current CID */}
+      {spaceCid && (
+        <div className="p-2 bg-gray-900 text-xs text-gray-400 text-center">
+          Current CID: {spaceCid}
+        </div>
+      )}
     </div>
   );
 };
-export default FairAIGame;
+
+export default ChatInterface;

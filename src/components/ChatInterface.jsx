@@ -1,59 +1,35 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Mic, Send, PlusCircle, Globe, Lightbulb } from "lucide-react";
+import { ChatGroq } from "@langchain/groq";
 import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { create } from "@web3-storage/w3up-client";
 import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
+import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
+import { SERPGoogleScholarAPITool } from "@langchain/community/tools/google_scholar";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnableLambda } from "@langchain/core/runnables";
 
-const ChatInterfacech = () => {
+const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messageEndRef = useRef(null);
-  const [lilypadClient, setLilypadClient] = useState(null);
+  const [llm, setLlm] = useState(null);
+  const [webSearchTool, setWebSearchTool] = useState(null);
+  const [scholarTool, setScholarTool] = useState(null);
+  const [routerChain, setRouterChain] = useState(null);
   const [storachaClient, setStorachaClient] = useState(null);
   const [spaceCid, setSpaceCid] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
-  const [currentSpace, setCurrentSpace] = useState(null);
-  const [currentModel, setCurrentModel] = useState("llama-3.3-70b-versatile");
   const spaceDID = "z6MkjbUgeTkH47g3mmLJz36Ny61MLLkD5KXFNmFWz3vbfws2";
 
-  // Lilypad API endpoint
-  const LILYPAD_API_URL = "https://api.lilypad.tech";
-  const LILYPAD_API_KEY =
-    "anr_93a15e0140dee192814693c8dfffba0b0e95b3f9d00466929de79207e529260b"; // Replace with your actual API key
-
-  // Model mapping for different task types
-  const MODEL_MAPPING = {
-    TEXT_GENERATION: [
-      "llama-3.3-70b-versatile",
-      "mixtral-8x7b",
-      "phi-3-medium",
-    ],
-    CODE_GENERATION: ["deepseek-coder", "codellama-70b", "phi-3-medium"],
-    REASONING: ["llama-3.3-70b-versatile", "mixtral-8x7b", "claude-3-sonnet"],
-    MATH: ["deepseek-math", "claude-3-opus", "llama-3.3-70b"],
-    DEFAULT: "llama-3.3-70b-versatile",
-  };
-
-  // Types of AI artifacts that can be stored
-  const artifactTypes = {
-    CHAIN_OF_THOUGHT: "chain_of_thought",
-    CODE_ARTIFACT: "code_artifact",
-    EXECUTION_ARTIFACT: "execution_artifact",
-    MODEL_ARTIFACT: "model_artifact",
-    TRAINING_DATA: "training_data",
-    METADATA: "metadata",
-    ANNOTATIONS: "annotations",
-    MESSAGES: "messages",
-  };
-
-  // Initialize the Lilypad client and Storacha client on component mount
+  // Initialize the chat model, tools, and Storacha client on component mount
   useEffect(() => {
-    // Initialize Lilypad client
-    initializeLilypadClient();
+    // Initialize AI components
+    initializeAIComponents();
 
     // Initialize Storacha client
     initializeStorachaClient();
@@ -65,88 +41,50 @@ const ChatInterfacech = () => {
     setMessages(storedMessages);
   }, []);
 
-  const initializeLilypadClient = async () => {
+  // Initialize AI components (LLM and tools)
+  const initializeAIComponents = async () => {
     try {
-      // Initialize Lilypad client
-      const client = {
-        async callModel(modelName, prompt, options = {}) {
-          try {
-            const response = await fetch(`${LILYPAD_API_URL}/v1/inference`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${LILYPAD_API_KEY}`,
-              },
-              body: JSON.stringify({
-                model: modelName,
-                prompt: prompt,
-                temperature: options.temperature || 0,
-                max_tokens: options.max_tokens || 2048,
-              }),
-            });
+      // Initialize ChatGroq model
+      const llmInstance = new ChatGroq({
+        apiKey: "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",
+        model: "qwen-2.5-32b",
+        temperature: 0,
+      });
+      setLlm(llmInstance);
 
-            if (!response.ok) {
-              throw new Error(`Lilypad API error: ${response.status}`);
-            }
+      // Initialize search tools
+      const webSearchToolInstance = new TavilySearchResults({
+        maxResults: 2,
+        apiKey: "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",
+      });
+      setWebSearchTool(webSearchToolInstance);
 
-            const result = await response.json();
-            return result.text;
-          } catch (error) {
-            console.error("Error calling Lilypad API:", error);
-            throw error;
-          }
-        },
-      };
+      const scholarToolInstance = new SERPGoogleScholarAPITool({
+        apiKey:
+          "d033f92170d893fb5f23a0a9753c6d3e2134647cba08c93360828ef375aac527",
+      });
+      setScholarTool(scholarToolInstance);
 
-      setLilypadClient(client);
-      console.log("Lilypad client initialized");
+      // Router prompt that decides which tool to use
+      const routerPrompt = ChatPromptTemplate.fromMessages([
+        [
+          "system",
+          `You are a helpful router assistant that determines which search tool to use for a given query.
+          - For current events, real-time information, weather, news, specific websites, or general web searches, respond with "web".
+          - For encyclopedic knowledge, historical information, definitions, or concepts, respond with "scholar".
+          Respond with just one word: "web" or "scholar".`,
+        ],
+        ["human", "{query}"],
+      ]);
+
+      // Create router chain
+      const routerChainInstance = routerPrompt.pipe(llmInstance);
+      setRouterChain(routerChainInstance);
+
+      console.log("AI components initialized successfully");
     } catch (error) {
-      console.error("Error initializing Lilypad client:", error);
+      console.error("Error initializing AI components:", error);
     }
-  };
-
-  // Detect task type based on user input
-  const detectTaskType = (userInput) => {
-    const input = userInput.toLowerCase();
-
-    if (
-      input.includes("code") ||
-      input.includes("function") ||
-      input.includes("programming") ||
-      input.includes("script") ||
-      /write a (python|javascript|java|c\+\+|rust)/i.test(input)
-    ) {
-      return "CODE_GENERATION";
-    }
-
-    if (
-      input.includes("math") ||
-      input.includes("calculate") ||
-      input.includes("equation") ||
-      input.includes("solve")
-    ) {
-      return "MATH";
-    }
-
-    if (
-      input.includes("reason") ||
-      input.includes("explain why") ||
-      input.includes("analyze") ||
-      input.includes("consider") ||
-      input.includes("step by step")
-    ) {
-      return "REASONING";
-    }
-
-    return "TEXT_GENERATION";
-  };
-
-  // Select optimal model based on task type
-  const selectOptimalModel = (taskType) => {
-    const models = MODEL_MAPPING[taskType] || MODEL_MAPPING.DEFAULT;
-    // For now, just return the first model in the list for this task type
-    // In a more advanced implementation, you could implement load balancing or cost optimization
-    return models[0];
   };
 
   const initializeStorachaClient = async () => {
@@ -165,122 +103,48 @@ const ChatInterfacech = () => {
       // First try to see if we already have access to the space
       try {
         const spaces = await client.spaces();
-        console.log("Available spaces:", spaces);
-
-        let spaceToUse = null;
-
-        // Try to find the specific space by DID
         const existingSpace = spaces.find((space) => space.did() === spaceDID);
-        if (existingSpace) {
-          spaceToUse = existingSpace;
-          console.log(
-            "Found existing space with matching DID:",
-            existingSpace.did()
-          );
-        }
-        // If no specific space found, use the first available space
-        else if (spaces.length > 0) {
-          spaceToUse = spaces[0];
-          console.log("Using first available space:", spaceToUse.did());
-        }
 
-        if (spaceToUse) {
-          console.log("Setting current space to:", spaceToUse.did());
-          await client.setCurrentSpace(spaceToUse.did());
-          setCurrentSpace(spaceToUse);
-          setConnectionStatus(
-            "Connected to space: " + spaceToUse.did().substring(0, 10) + "..."
-          );
+        if (existingSpace) {
+          await client.setCurrentSpace(existingSpace.did());
+          setConnectionStatus("Connected to existing space");
           setIsConnected(true);
           return;
         }
       } catch (error) {
         console.log(
-          "Error accessing spaces, proceeding to authorization...",
+          "No existing space access, proceeding to authorization...",
           error
         );
       }
-
-      // Login with email if we couldn't access existing spaces
+      // Instead of using authorize
       setConnectionStatus("Logging in with email...");
       await client.login("avularamswaroop@gmail.com");
 
-      // Claim delegations after login
+      // Then claim the delegations
       setConnectionStatus("Claiming delegations...");
       const delegations = await client.capability.access.claim();
+
       console.log("Claimed delegations:", delegations);
 
-      // Check spaces again after login
-      const spacesAfterLogin = await client.spaces();
-      console.log("Spaces after login:", spacesAfterLogin);
+      // Check if we now have access to the space
+      const spaces = await client.spaces();
+      console.log("Available spaces:", spaces);
 
-      // If no spaces exist after login, create a new one
-      if (spacesAfterLogin.length === 0) {
-        setConnectionStatus("Creating new space...");
-        console.log("No spaces available, creating a new one");
-        const newSpace = await client.createSpace("ai-chat-space");
-        await client.setCurrentSpace(newSpace.did());
-        setCurrentSpace(newSpace);
-        console.log("Created and set new space:", newSpace.did());
-        setConnectionStatus("Created and connected to new space");
+      const targetSpace = spaces[0];
+
+      if (targetSpace) {
+        await client.setCurrentSpace(targetSpace.did());
+        setConnectionStatus("Connected to space");
         setIsConnected(true);
       } else {
-        // Use the first available space after login
-        const space = spacesAfterLogin[0];
-        console.log("Using space after login:", space.did());
-        await client.setCurrentSpace(space.did());
-        setCurrentSpace(space);
-        setConnectionStatus(
-          "Connected to space: " + space.did().substring(0, 10) + "..."
+        throw new Error(
+          "Space not found after claiming delegations. You may need to register this space with your email first."
         );
-        setIsConnected(true);
       }
     } catch (error) {
       console.error("Error initializing Storacha client:", error);
       setConnectionStatus(`Connection failed: ${error.message}`);
-    }
-  };
-
-  // Verify space and reconnect if needed
-  const verifySpaceConnection = async () => {
-    if (!storachaClient) {
-      console.error("Storacha client not initialized");
-      return false;
-    }
-
-    try {
-      // Check if current space is set
-      let currentSpaceDid = null;
-      try {
-        currentSpaceDid = await storachaClient.currentSpace().did();
-        console.log("Current space verified:", currentSpaceDid);
-        return true;
-      } catch (error) {
-        console.warn("No current space set, trying to reconnect...", error);
-      }
-
-      // Try to recover by setting space again
-      if (currentSpace) {
-        console.log("Attempting to reconnect to space:", currentSpace.did());
-        await storachaClient.setCurrentSpace(currentSpace.did());
-        return true;
-      }
-
-      // Last resort - get available spaces and use first one
-      const spaces = await storachaClient.spaces();
-      if (spaces.length > 0) {
-        const space = spaces[0];
-        console.log("Reconnecting to first available space:", space.did());
-        await storachaClient.setCurrentSpace(space.did());
-        setCurrentSpace(space);
-        return true;
-      }
-
-      console.error("No spaces available for reconnection");
-      return false;
-    } catch (error) {
-      console.error("Error verifying space connection:", error);
-      return false;
     }
   };
 
@@ -295,96 +159,37 @@ const ChatInterfacech = () => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Function to extract and classify AI artifacts from response
-  const extractAIArtifacts = (aiResponse) => {
-    // Initialize with basic message content
-    const artifacts = {
-      [artifactTypes.MESSAGES]: aiResponse,
-    };
-
-    // Extract code blocks - simple implementation, can be enhanced
-    const codeRegex = /```([a-z]*)\n([\s\S]*?)```/g;
-    const codeMatches = [...aiResponse.matchAll(codeRegex)];
-
-    if (codeMatches.length > 0) {
-      artifacts[artifactTypes.CODE_ARTIFACT] = codeMatches.map((match) => ({
-        language: match[1] || "text",
-        code: match[2],
-      }));
-    }
-
-    // Check for chain of thought patterns (e.g., "Let me think step by step")
-    if (
-      aiResponse.includes("step by step") ||
-      aiResponse.includes("Let me think") ||
-      (aiResponse.includes("First, ") && aiResponse.includes("Second, ")) ||
-      (aiResponse.includes("1.") && aiResponse.includes("2."))
-    ) {
-      artifacts[artifactTypes.CHAIN_OF_THOUGHT] = aiResponse;
-    }
-
-    // Extract potential metadata
-    const metadata = {
-      timestamp: new Date().toISOString(),
-      modelUsed: currentModel,
-      responseLength: aiResponse.length,
-    };
-    artifacts[artifactTypes.METADATA] = metadata;
-
-    return artifacts;
-  };
-
-  // Upload AI artifacts to Storacha
-  const uploadArtifactsToStoracha = async (artifacts, conversationId) => {
+  // Upload messages to Storacha
+  const uploadMessagesToStoracha = async (updatedMessages) => {
     if (!storachaClient || !isConnected) {
       console.error("Storacha client not initialized or not connected");
       return null;
     }
 
     setIsUploading(true);
-    setUploadStatus("Preparing to upload AI artifacts...");
+    setUploadStatus("Preparing to upload messages...");
 
     try {
-      // Verify space connection before upload
-      const isSpaceVerified = await verifySpaceConnection();
-      if (!isSpaceVerified) {
-        throw new Error("Could not verify space connection before upload");
-      }
-
-      // Create a structured object with all artifact types
-      const artifactData = {
-        id: conversationId || Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        artifacts: artifacts,
-      };
-
-      // Create a unique filename with timestamp and artifact type
+      // Create a unique filename with timestamp
       const timestamp = new Date().toISOString();
-      const filename = `ai_artifacts_${timestamp}.json`;
 
-      // Create a file object with the structured artifacts
-      const artifactBlob = new Blob([JSON.stringify(artifactData, null, 2)], {
+      const filename = `chat_history_${timestamp}.json`;
+
+      // Create a file object with the messages
+      const messageBlob = new Blob([JSON.stringify(updatedMessages)], {
         type: "application/json",
       });
-      const file = new File([artifactBlob], filename, {
+      const file = new File([messageBlob], filename, {
         type: "application/json",
       });
 
-      setUploadStatus("Uploading artifacts to Storacha...");
-
-      // Log current space before upload for debugging
-      try {
-        const currentSpaceDid = await storachaClient.currentSpace().did();
-        console.log("Current space before upload:", currentSpaceDid);
-      } catch (error) {
-        console.error("Error getting current space before upload:", error);
-      }
+      setUploadStatus("Uploading messages to Storacha...");
 
       // Upload the file to Storacha
       const uploadResult = await storachaClient.uploadFile(file);
 
       console.log(
-        "Artifacts uploaded successfully with CID:",
+        "Messages uploaded successfully with CID:",
         uploadResult.toString()
       );
       setSpaceCid(uploadResult.toString());
@@ -392,7 +197,7 @@ const ChatInterfacech = () => {
 
       return uploadResult.toString();
     } catch (error) {
-      console.error("Error uploading artifacts to Storacha:", error);
+      console.error("Error uploading messages to Storacha:", error);
       setUploadStatus(`Upload failed: ${error.message}`);
       return null;
     } finally {
@@ -400,39 +205,90 @@ const ChatInterfacech = () => {
     }
   };
 
-  // Convert message history to a prompt format suitable for Lilypad API
-  const formatMessageHistoryAsPrompt = (messages, currentMessage) => {
-    let prompt = "";
+  // Retrieve messages from Storacha
+  const retrieveMessagesFromStoracha = async (cid) => {
+    if (!cid) {
+      console.error("No CID provided for retrieval");
+      return;
+    }
 
-    // Format previous messages
-    messages.forEach((msg) => {
-      if (msg.sender === "user") {
-        prompt += `User: ${msg.text}\n\n`;
-      } else {
-        prompt += `Assistant: ${msg.text}\n\n`;
+    setIsLoading(true);
+
+    try {
+      const gatewayUrl = `https://${cid}.ipfs.w3s.link`;
+      console.log("Fetching from:", gatewayUrl);
+
+      const response = await fetch(gatewayUrl);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch messages: ${response.status} ${response.statusText}`
+        );
       }
-    });
 
-    // Add current message
-    prompt += `User: ${currentMessage}\n\nAssistant:`;
+      const retrievedMessages = await response.json();
+      console.log("Retrieved Messages:", retrievedMessages);
 
-    return prompt;
+      if (Array.isArray(retrievedMessages) && retrievedMessages.length > 0) {
+        setMessages(retrievedMessages);
+      } else {
+        console.warn(
+          "Retrieved data is not in expected format:",
+          retrievedMessages
+        );
+      }
+    } catch (error) {
+      console.error("Error retrieving messages from Storacha:", error);
+      alert("Failed to retrieve messages. See console for details.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Handle sending a message
+  // Execute a search using the specified tool
+  const executeSearch = async (query, tool) => {
+    console.log(
+      `Executing search with ${
+        tool === webSearchTool ? "web search" : "scholar"
+      } tool`
+    );
+
+    try {
+      // Direct execution of the tool
+      const searchResult = await tool.invoke(query);
+      console.log("Search result:", searchResult);
+      return searchResult;
+    } catch (error) {
+      console.error(
+        `Error executing ${
+          tool === webSearchTool ? "web search" : "scholar"
+        } tool:`,
+        error
+      );
+      return Error`retrieving information: ${error.message}`;
+    }
+  };
+
+  // Handle sending a message with multi-agent routing
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !lilypadClient || isLoading || !isConnected) {
+    if (!inputMessage.trim() || isLoading || !isConnected) {
       if (!isConnected) {
         alert("Please wait until connection to Storacha is established");
       }
       return;
     }
 
+    if (!llm || !webSearchTool || !scholarTool || !routerChain) {
+      alert(
+        "AI components are still initializing. Please try again in a moment."
+      );
+      return;
+    }
+
     setIsLoading(true);
 
-    const conversationId = Date.now().toString();
     const newMessage = {
-      id: conversationId,
+      id: Date.now(),
       text: inputMessage,
       sender: "user",
       timestamp: new Date().toISOString(),
@@ -444,30 +300,47 @@ const ChatInterfacech = () => {
     setInputMessage("");
 
     try {
-      // Detect the task type based on user input
-      const taskType = detectTaskType(inputMessage);
-      console.log(`Detected task type: ${taskType}`);
+      // First, determine if we should use a search tool or just the LLM
+      console.log("Determining best agent for query:", inputMessage);
 
-      // Select the optimal model for this task
-      const selectedModel = selectOptimalModel(taskType);
-      setCurrentModel(selectedModel);
-      console.log(`Selected model: ${selectedModel}`);
+      // Route the message to determine which tool to use
+      const routerDecision = await routerChain.invoke({ query: inputMessage });
+      console.log("Router decision:", routerDecision.content.toLowerCase());
 
-      // Format message history as a prompt
-      const prompt = formatMessageHistoryAsPrompt(messages, inputMessage);
+      let response;
+      const toolDecision = routerDecision.content.toLowerCase();
 
-      // Call the Lilypad API with the selected model
-      const response = await lilypadClient.callModel(selectedModel, prompt, {
-        temperature: 0,
-        max_tokens: 2048,
-      });
+      // Execute the appropriate tool based on the router decision
+      if (toolDecision.includes("web")) {
+        console.log("Using web search tool");
+        const searchResults = await executeSearch(inputMessage, webSearchTool);
+
+        // Now combine the search results with the question for the LLM
+        const prompt = `Question: ${inputMessage}\n\nSearch Results: ${searchResults}\n\nPlease answer the question based on the search results above.`;
+        const aiResponse = await llm.invoke(prompt);
+        response = aiResponse.content;
+      } else if (toolDecision.includes("scholar")) {
+        console.log("Using scholar tool");
+        const scholarResults = await executeSearch(inputMessage, scholarTool);
+
+        // Combine the scholar results with the question
+        const prompt = `Question: ${inputMessage}\n\nScholar Results: ${scholarResults}\n\nPlease answer the question based on the scholarly information above.`;
+        const aiResponse = await llm.invoke(prompt);
+        response = aiResponse.content;
+      } else {
+        // Fallback to just using the LLM directly
+        console.log("Using LLM directly");
+        const aiResponse = await llm.invoke(inputMessage);
+        response = aiResponse.content;
+      }
+
+      console.log("AI response:", response);
 
       // Create AI response message
       const aiMessage = {
         id: Date.now() + 1,
         text: response,
         sender: "bot",
-        modelUsed: selectedModel,
         timestamp: new Date().toISOString(),
       };
 
@@ -475,19 +348,9 @@ const ChatInterfacech = () => {
       const finalMessages = [...updatedMessages, aiMessage];
       setMessages(finalMessages);
 
-      // Extract and classify AI artifacts from the response
-      const aiArtifacts = extractAIArtifacts(response);
-
-      // Add messages to artifacts for comprehensive storage
-      aiArtifacts[artifactTypes.MESSAGES] = finalMessages;
-
-      // Add model information to metadata
-      aiArtifacts[artifactTypes.METADATA].modelUsed = selectedModel;
-      aiArtifacts[artifactTypes.METADATA].taskType = taskType;
-
-      // Upload the complete set of AI artifacts
+      // Upload the complete conversation including the new AI response
       if (isConnected) {
-        await uploadArtifactsToStoracha(aiArtifacts, conversationId);
+        await uploadMessagesToStoracha(finalMessages);
       } else {
         console.warn("Not connected to Storacha, skipping upload");
       }
@@ -526,9 +389,6 @@ const ChatInterfacech = () => {
           >
             {connectionStatus}
           </p>
-          {currentModel && (
-            <p className="text-xs text-blue-400">Using model: {currentModel}</p>
-          )}
           {isUploading && (
             <p className="text-xs text-gray-400">{uploadStatus}</p>
           )}
@@ -541,6 +401,18 @@ const ChatInterfacech = () => {
             <Mic size={20} />
           </button>
         </div>
+        {/* Button to retrieve messages */}
+        <button
+          onClick={() => retrieveMessagesFromStoracha(spaceCid)}
+          disabled={!spaceCid || isLoading || !isConnected}
+          className={`${
+            !spaceCid || isLoading || !isConnected
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-green-600 hover:bg-green-700"
+          } p-2 rounded flex items-center`}
+        >
+          {isLoading ? "Loading..." : "Retrieve Messages"}
+        </button>
       </div>
 
       {/* Messages Container */}
@@ -560,11 +432,6 @@ const ChatInterfacech = () => {
               }`}
             >
               {message.text}
-              {message.modelUsed && (
-                <div className="text-xs opacity-70 mt-1 text-blue-300">
-                  via {message.modelUsed}
-                </div>
-              )}
               {message.timestamp && (
                 <div className="text-xs opacity-70 mt-1">
                   {new Date(message.timestamp).toLocaleTimeString()}
@@ -647,4 +514,4 @@ const ChatInterfacech = () => {
   );
 };
 
-export default ChatInterfacech;
+export default ChatInterface;
