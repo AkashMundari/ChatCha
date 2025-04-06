@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@langchain/community": "^0.3.39",
     "@langchain/core": "^0.3.43",
     "@langchain/groq": "^0.2.0",
     "@web3-storage/w3up-client": "^17.2.0",
