@@ -20,9 +20,8 @@ const InitialResponseAgent = ({ setCids }) => {
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
   const [currentSpace, setCurrentSpace] = useState(null);
-
-  // Pre-defined space CID for this component
-  // const spaceCid = "z6Mkvurg68JS7oUHqNAekMun5P6gFEugAM1PhjMjSjKLrFWp"; // Replace with actual space CID
+  // Add state for chat messages
+  const [chatMessages, setChatMessages] = useState([]);
 
   // Artifact types for structured storage
   const artifactTypes = {
@@ -40,6 +39,14 @@ const InitialResponseAgent = ({ setCids }) => {
     // Initialize Storacha client
     initializeStorachaClient();
   }, []);
+
+  // Add effect to scroll to bottom when messages change
+  useEffect(() => {
+    const chatContainer = document.getElementById("chat-container");
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }, [chatMessages]);
 
   // Initialize AI components (LLM and tools)
   const initializeAIComponents = async () => {
@@ -86,65 +93,6 @@ const InitialResponseAgent = ({ setCids }) => {
       console.error("Error initializing AI components:", error);
     }
   };
-
-  // const initializeStorachaClient = async () => {
-  //   try {
-  //     setConnectionStatus("Creating Storacha client...");
-
-  //     // Create client with memory store to persist delegations
-  //     const store = new StoreMemory();
-  //     const client = await create({ store });
-  //     setStorachaClient(client);
-
-  //     // Get the agent DID
-  //     const agentDID = client.agent.did();
-  //     console.log("Agent DID:", agentDID);
-
-  //     // Login with email
-  //     setConnectionStatus("Logging in with email...");
-  //     await client.login("avularamswaroop@gmail.com");
-
-  //     setConnectionStatus("Claiming delegations...");
-  //     const delegations = await client.capability.access.claim();
-
-  //     console.log("Claimed delegations:", delegations);
-
-  //     const spaces = await client.spaces();
-  //     console.log("Available spaces:", spaces);
-
-  //     const targetSpace = spaces[0];
-
-  //     if (targetSpace) {
-  //       await client.setCurrentSpace(targetSpace.did());
-  //       // storachaClient.setCurrentSpace(targetSpace.did());
-  //       setConnectionStatus("Connected to space");
-  //       setCurrentSpace(targetSpace.did());
-  //       setIsConnected(true);
-  //     } else {
-  //       throw new Error(
-  //         "Space not found after claiming delegations. You may need to register this space with your email first."
-  //       );
-  //     }
-  //   } catch (error) {
-  //     console.error("Error initializing Storacha client:", error);
-  //     setConnectionStatus(`Connection failed: ${error.message}`);
-  //   }
-
-  //   // try {
-  //   //     // Set the pre-defined space as current
-  //   //     await client.setCurrentSpace(spaceCid);
-  //   //     setCurrentSpace({ did: () => spaceCid });
-  //   //     setConnectionStatus(`Connected to pre-defined space`);
-  //   //     setIsConnected(true);
-  //   //   } catch (error) {
-  //   //     console.error("Error connecting to pre-defined space:", error);
-  //   //     setConnectionStatus(`Connection failed: ${error.message}`);
-  //   //   }
-  //   // } catch (error) {
-  //   //   console.error("Error initializing Storacha client:", error);
-  //   //   setConnectionStatus(`Connection failed: ${error.message}`);
-  //   // }
-  // };
 
   const initializeStorachaClient = async () => {
     try {
@@ -343,14 +291,30 @@ const InitialResponseAgent = ({ setCids }) => {
       return;
     }
 
+    // Add user message immediately to the chat history
+    const userMessage = inputMessage;
+    setChatMessages((prev) => [
+      ...prev,
+      { role: "user", content: userMessage },
+    ]);
+
+    // Clear input field immediately for better UX
+    setInputMessage("");
+
     setIsLoading(true);
 
     try {
       // First, determine if we should use a search tool or just the LLM
-      console.log("Determining best agent for query:", inputMessage);
+      console.log("Determining best agent for query:", userMessage);
+
+      // Add thinking indicator to chat messages
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "thinking", content: "Thinking..." },
+      ]);
 
       // Route the message to determine which tool to use
-      const routerDecision = await routerChain.invoke({ query: inputMessage });
+      const routerDecision = await routerChain.invoke({ query: userMessage });
       console.log("Router decision:", routerDecision.content.toLowerCase());
 
       let response;
@@ -358,42 +322,123 @@ const InitialResponseAgent = ({ setCids }) => {
       let searchResults = null;
       const toolDecision = routerDecision.content.toLowerCase();
 
+      // Update thinking message to show tool selection
+      setChatMessages((prev) => {
+        const newMessages = [...prev];
+        const thinkingIndex = newMessages.findIndex(
+          (msg) => msg.role === "thinking"
+        );
+        if (thinkingIndex !== -1) {
+          newMessages[thinkingIndex] = {
+            role: "thinking",
+            content: `Using ${
+              toolDecision.includes("web")
+                ? "web search"
+                : toolDecision.includes("scholar")
+                ? "scholar search"
+                : "just AI"
+            } tool...`,
+          };
+        }
+        return newMessages;
+      });
+
       // Execute the appropriate tool based on the router decision
       if (toolDecision.includes("web")) {
         console.log("Using web search tool");
         toolUsed = "web_search";
-        searchResults = await executeSearch(inputMessage, webSearchTool);
+        searchResults = await executeSearch(userMessage, webSearchTool);
 
         // Now combine the search results with the question for the LLM
-        const prompt = `Question: ${inputMessage}\n\nSearch Results: ${JSON.stringify(
+        const prompt = `Question: ${userMessage}\n\nSearch Results: ${JSON.stringify(
           searchResults
         )}\n\nPlease answer the question based on the search results above.`;
+
+        // Update thinking message
+        setChatMessages((prev) => {
+          const newMessages = [...prev];
+          const thinkingIndex = newMessages.findIndex(
+            (msg) => msg.role === "thinking"
+          );
+          if (thinkingIndex !== -1) {
+            newMessages[thinkingIndex] = {
+              role: "thinking",
+              content: "Generating response based on web search results...",
+            };
+          }
+          return newMessages;
+        });
+
         const aiResponse = await llm.invoke(prompt);
         response = aiResponse.content;
       } else if (toolDecision.includes("scholar")) {
         console.log("Using scholar tool");
         toolUsed = "scholar_search";
-        searchResults = await executeSearch(inputMessage, scholarTool);
+        searchResults = await executeSearch(userMessage, scholarTool);
 
         // Combine the scholar results with the question
-        const prompt = `Question: ${inputMessage}\n\nScholar Results: ${JSON.stringify(
+        const prompt = `Question: ${userMessage}\n\nScholar Results: ${JSON.stringify(
           searchResults
         )}\n\nPlease answer the question based on the scholarly information above.`;
+
+        // Update thinking message
+        setChatMessages((prev) => {
+          const newMessages = [...prev];
+          const thinkingIndex = newMessages.findIndex(
+            (msg) => msg.role === "thinking"
+          );
+          if (thinkingIndex !== -1) {
+            newMessages[thinkingIndex] = {
+              role: "thinking",
+              content: "Generating response based on scholarly research...",
+            };
+          }
+          return newMessages;
+        });
+
         const aiResponse = await llm.invoke(prompt);
         response = aiResponse.content;
       } else {
         // Fallback to just using the LLM directly
         console.log("Using LLM directly");
         toolUsed = "llm_only";
-        const aiResponse = await llm.invoke(inputMessage);
+
+        // Update thinking message
+        setChatMessages((prev) => {
+          const newMessages = [...prev];
+          const thinkingIndex = newMessages.findIndex(
+            (msg) => msg.role === "thinking"
+          );
+          if (thinkingIndex !== -1) {
+            newMessages[thinkingIndex] = {
+              role: "thinking",
+              content: "Generating response...",
+            };
+          }
+          return newMessages;
+        });
+
+        const aiResponse = await llm.invoke(userMessage);
         response = aiResponse.content;
       }
 
       console.log("AI response:", response);
 
+      // Remove thinking message and add AI response
+      setChatMessages((prev) => {
+        const newMessages = [...prev];
+        const thinkingIndex = newMessages.findIndex(
+          (msg) => msg.role === "thinking"
+        );
+        if (thinkingIndex !== -1) {
+          newMessages.splice(thinkingIndex, 1);
+        }
+        return [...newMessages, { role: "assistant", content: response }];
+      });
+
       // Create structured data for storage
       const structuredData = createStructuredData(
-        inputMessage,
+        userMessage,
         response,
         toolUsed,
         searchResults
@@ -405,23 +450,43 @@ const InitialResponseAgent = ({ setCids }) => {
       } else {
         console.warn("Not connected to Storacha, skipping upload");
       }
-
-      // Clear the input field
-      setInputMessage("");
     } catch (error) {
       console.error("Error in chat interaction:", error);
       setUploadStatus(`Error: ${error.message}`);
+
+      // Remove thinking message and add error message
+      setChatMessages((prev) => {
+        const newMessages = [...prev];
+        const thinkingIndex = newMessages.findIndex(
+          (msg) => msg.role === "thinking"
+        );
+        if (thinkingIndex !== -1) {
+          newMessages.splice(thinkingIndex, 1);
+        }
+        return [
+          ...newMessages,
+          {
+            role: "system",
+            content: `Error: ${error.message}. Please try again.`,
+          },
+        ];
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Function to format message content with Markdown support
+  const formatMessage = (content) => {
+    return content;
+  };
+
   return (
-    <div className="flex flex-col bg-black text-white p-4 rounded-lg">
+    <div className="flex flex-col bg-black text-white p-4 rounded-lg h-full max-h-[600px]">
       <h2 className="text-xl font-bold mb-4">Initial Response Agent</h2>
 
       {/* Status indicators */}
-      <div className="mb-4">
+      <div className="mb-2">
         <p
           className={`text-sm ${
             isConnected ? "text-green-400" : "text-yellow-400"
@@ -432,19 +497,48 @@ const InitialResponseAgent = ({ setCids }) => {
         {isUploading && <p className="text-sm text-blue-400">{uploadStatus}</p>}
       </div>
 
-      {/* Processing indicator */}
-      {isLoading && (
-        <div className="mb-4 p-3 bg-gray-800 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-100"></div>
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-200"></div>
-            <span className="text-sm text-gray-300">
-              Processing your query...
-            </span>
+      {/* Chat messages area */}
+      <div
+        id="chat-container"
+        className="flex-grow overflow-y-auto mb-4 p-2 bg-gray-900 rounded-lg"
+        style={{ minHeight: "300px" }}
+      >
+        {chatMessages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <p>Start a conversation...</p>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col space-y-4">
+            {chatMessages.map((msg, index) => (
+              <div
+                key={index}
+                className={`${
+                  msg.role === "user"
+                    ? "bg-blue-900 ml-8"
+                    : msg.role === "assistant"
+                    ? "bg-gray-800 mr-8"
+                    : msg.role === "thinking"
+                    ? "bg-gray-700 text-gray-300 mr-8 italic"
+                    : "bg-red-900 mx-8"
+                } p-3 rounded-lg`}
+              >
+                <p className="text-xs font-semibold mb-1 text-gray-400">
+                  {msg.role === "user"
+                    ? "You"
+                    : msg.role === "assistant"
+                    ? "AI Assistant"
+                    : msg.role === "thinking"
+                    ? "AI"
+                    : "System"}
+                </p>
+                <div className="whitespace-pre-wrap">
+                  {formatMessage(msg.content)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Input Area */}
       <div className="flex items-center space-x-2">

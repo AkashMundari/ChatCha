@@ -14,8 +14,6 @@ const AnalysisAgent = ({ cids }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [currentSpace, setCurrentSpace] = useState(null);
-  // Pre-defined space CID for this component
-  // const spaceCid = "z6MkwJVJeZ9WMRUmQaT9rBxHVxvQ8RCQGAgvrRJnY5swMb5f"; // Replace with actual space CID for the analysis agent
 
   // Artifact types for structured storage
   const artifactTypes = {
@@ -101,40 +99,8 @@ const AnalysisAgent = ({ cids }) => {
       console.error("Error initializing Storacha client:", error);
       setConnectionStatus(`Connection failed: ${error.message}`);
     }
-
-    //   try {
-    //     // Set the pre-defined space as current
-    //     await client.setCurrentSpace(spaceCid);
-    //     setConnectionStatus(`Connected to pre-defined space`);
-    //     setIsConnected(true);
-    //   } catch (error) {
-    //     console.error("Error connecting to pre-defined space:", error);
-    //     setConnectionStatus(`Connection failed: ${error.message}`);
-    //   }
-    // } catch (error) {
-    //   console.error("Error initializing Storacha client:", error);
-    //   setConnectionStatus(`Connection failed: ${error.message}`);
-    // }
   };
 
-  // Process the latest CID from the initial agent
-  // const processLatestCid = async (cid) => {
-  // if (!cid || isProcessing) return;
-
-  // setIsProcessing(true);
-  // setProcessingStatus(`Analyzing response from CID: ${cid}`);
-
-  // try {
-  //   // Fetch the data from the CID
-  //   const data = await fetchDataFromCid(cid);
-
-  //   if (!data) {
-  //     throw new Error("Failed to fetch data from CID");
-  //   }
-
-  //   // Extract the original response
-  //   const originalInput = data.artifacts[artifactTypes.INPUT].message;
-  //   const originalOutput = data.
   // Process the latest CID from the initial agent
   const processLatestCid = async (cid) => {
     if (!cid || isProcessing) return;
@@ -157,21 +123,36 @@ const AnalysisAgent = ({ cids }) => {
 
       // Create a prompt for the analysis
       const analysisPrompt = `
-        I need you to analyze and enhance the following AI response to a user query.
-        
-        USER QUERY: ${originalInput}
-        
-        ORIGINAL AI RESPONSE: ${originalOutput}
-        
-        Please provide:
-        1. A more concise and clear version of this response
-        2. Add any missing important information
-        3. Ensure the tone is helpful and conversational
-        4. Structure the information logically
-        
-        Your enhanced response:
-      `;
+You are an expert AI Response Analyzer. Examine the following conversation and provide a structured, enhanced response.
 
+USER QUERY: ${originalInput}
+
+ORIGINAL AI RESPONSE: ${originalOutput}
+
+Analyze this exchange and create an improved response that:
+1. Begins with a concise summary of the key points (2-3 sentences maximum)
+2. Organizes information using clear headings (## for main sections, ### for subsections)
+3. Prioritizes the most relevant information first
+4. Includes any critical missing information or context
+5. Uses bullet points for lists and easy scanning
+6. Maintains a helpful, conversational tone
+7. Ends with a clear next step or actionable conclusion
+
+Your analysis should be comprehensive yet efficient, eliminating redundancy while preserving all valuable insights.
+
+FORMAT YOUR RESPONSE USING THIS STRUCTURE:
+## Summary
+[Concise overview]
+
+## Key Points
+[Main insights organized by importance]
+
+## Additional Context
+[Any missing information]
+
+## Actionable Takeaways
+[What the user should do with this information]
+`;
       // Generate the analysis using the LLM
       setProcessingStatus("Generating enhanced response...");
       const analysisResponse = await llm.invoke(analysisPrompt);
