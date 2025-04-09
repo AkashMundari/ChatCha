@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import { ChatGroq } from "@langchain/groq";
 import { create } from "@web3-storage/w3up-client";
 import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
-
+// import { Delegation } from "@ucanto/core/delegation";
+import { CarReader } from "@ipld/car";
+import * as Delegation from "@ucanto/core/delegation";
+// import { CAR } from "@ucanto/transport";
 const AnalysisAgent = ({ cids }) => {
   const [llm, setLlm] = useState(null);
   const [storachaClient, setStorachaClient] = useState(null);
@@ -117,6 +120,52 @@ const AnalysisAgent = ({ cids }) => {
     // }
   };
 
+  //upper one you are lookinh for
+
+  // const initializeStorachaClient = async () => {
+  //   try {
+  //     setConnectionStatus("Creating client...");
+  //     const store = new StoreMemory();
+  //     const client = await create({ store });
+  //     setStorachaClient(client);
+
+  //     const agentDID = client.agent.did();
+  //     console.log("Agent DID:", agentDID);
+
+  //     // Get delegation from backend instead of email login
+  //     setConnectionStatus("Requesting delegation...");
+  //     const response = await fetch(
+  //       `http://localhost:3001/api/delegation/initial-response/${agentDID}`
+  //     );
+
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to get delegation: ${response.status}`);
+  //     }
+
+  //     const delegationBytes = await response.arrayBuffer();
+
+  //     // Deserialize delegation using CarReader and importDAG
+  //     setConnectionStatus("Processing delegation...");
+  //     const blocks = [];
+  //     const reader = await CarReader.fromBytes(new Uint8Array(delegationBytes));
+  //     for await (const block of reader.blocks()) {
+  //       blocks.push(block);
+  //     }
+  //     const delegation = await Delegation.importDAG(blocks);
+
+  //     // Add space using delegation
+  //     setConnectionStatus("Adding space...");
+  //     const space = await client.addSpace(delegation);
+  //     await client.setCurrentSpace(space.did());
+
+  //     setCurrentSpace(space.did());
+  //     setConnectionStatus("Connected to space");
+  //     setIsConnected(true);
+  //   } catch (error) {
+  //     console.error("Error:", error);
+  //     setConnectionStatus(`Connection failed: ${error.message}`);
+  //   }
+  // };
   // Process the latest CID from the initial agent
   // const processLatestCid = async (cid) => {
   // if (!cid || isProcessing) return;

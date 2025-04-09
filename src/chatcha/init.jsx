@@ -6,7 +6,10 @@ import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
 import { SERPGoogleScholarAPITool } from "@langchain/community/tools/google_scholar";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-
+// import { Delegation } from "@ucanto/core/delegation";
+import * as Delegation from "@ucanto/core/delegation";
+import { CarReader } from "@ipld/car";
+// import { CAR } from "@ucanto/transport";
 const InitialResponseAgent = ({ setCids }) => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -213,6 +216,52 @@ const InitialResponseAgent = ({ setCids }) => {
       setConnectionStatus(`Connection failed: ${error.message}`);
     }
   };
+
+  //the above is original
+  // const initializeStorachaClient = async () => {
+  //   try {
+  //     setConnectionStatus("Creating client...");
+  //     const store = new StoreMemory();
+  //     const client = await create({ store });
+  //     setStorachaClient(client);
+
+  //     const agentDID = client.agent.did();
+  //     console.log("Agent DID:", agentDID);
+
+  //     // Get delegation from backend instead of email login
+  //     setConnectionStatus("Requesting delegation...");
+  //     const response = await fetch(
+  //       `http://localhost:3001/api/delegation/initial-response/${agentDID}`
+  //     );
+
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to get delegation: ${response.status}`);
+  //     }
+
+  //     const delegationBytes = await response.arrayBuffer();
+
+  //     // Deserialize delegation using CarReader and importDAG
+  //     setConnectionStatus("Processing delegation...");
+  //     const blocks = [];
+  //     const reader = await CarReader.fromBytes(new Uint8Array(delegationBytes));
+  //     for await (const block of reader.blocks()) {
+  //       blocks.push(block);
+  //     }
+  //     const delegation = await Delegation.importDAG(blocks);
+
+  //     // Add space using delegation
+  //     setConnectionStatus("Adding space...");
+  //     const space = await client.addSpace(delegation);
+  //     await client.setCurrentSpace(space.did());
+
+  //     setCurrentSpace(space.did());
+  //     setConnectionStatus("Connected to space");
+  //     setIsConnected(true);
+  //   } catch (error) {
+  //     console.error("Error:", error);
+  //     setConnectionStatus(`Connection failed: ${error.message}`);
+  //   }
+  // };
 
   // Create structured data for storage
   const createStructuredData = (

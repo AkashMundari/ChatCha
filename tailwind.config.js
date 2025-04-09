@@ -4,7 +4,7 @@ export default {
     "./index.html",
     "./src/App.jsx",
     "./src/main.jsx",
-    "./src/components/ChatInterface.jsx",
+    "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
     extend: {},
