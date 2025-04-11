@@ -69,21 +69,29 @@ const AnalysisAgent = ({ cids }) => {
 
       // Login with email
       setConnectionStatus("Logging in with email...");
-      await client.login("avularamswaroop@gmail.com");
+      const account = await client.login("avularamswaroop@gmail.com");
 
       // Use the pre-defined space
       setConnectionStatus(`Connecting to pre-defined space...`);
-      setConnectionStatus(`Connecting to pre-defined space...`);
+      // setConnectionStatus(`Connecting to pre-defined space...`);
       // Then claim the delegations
+
+      // const spaces = await client.spaces();
+      // console.log("Available spaces:", spaces);
+
+      const targetSpace = await client.createSpace(
+        `Analyse-Space-${new Date().toISOString()}`,
+        {
+          account,
+          skipGatewayAuthorization: true,
+        }
+      );
+
+      // const targetSpace = spaces[1];
       setConnectionStatus("Claiming delegations...");
       const delegations = await client.capability.access.claim();
 
       console.log("Claimed delegations:", delegations);
-
-      const spaces = await client.spaces();
-      console.log("Available spaces:", spaces);
-
-      const targetSpace = spaces[1];
 
       if (targetSpace) {
         await client.setCurrentSpace(targetSpace.did());

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import InitialResponseAgent from "./init";
+import InitialResponseAgent from "../components/test";
 import AnalysisAgent from "./sec";
 
 const MultiAgentSystem = () => {
