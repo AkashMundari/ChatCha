@@ -6,8 +6,8 @@ import { StoreMemory } from "@web3-storage/w3up-client/stores/memory";
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
 import { SERPGoogleScholarAPITool } from "@langchain/community/tools/google_scholar";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-
-const InitialResponseAgent = ({ setCids }) => {
+import { Mic, PlusCircle, Globe, Lightbulb } from "lucide-react";
+const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [llm, setLlm] = useState(null);
@@ -182,11 +182,16 @@ const InitialResponseAgent = ({ setCids }) => {
         setScholarSpace(newScholarSpace);
 
         // Start with main space as current
-        await client.setCurrentSpace(mainSpace.did());
-        setConnectionStatus("Claiming delegations...");
-        const delegations = await client.capability.access.claim();
 
+        const delegations = await client.capability.access.claim();
+        setConnectionStatus("Claiming delegations...");
         console.log("Claimed delegations:", delegations);
+
+        await client.setCurrentSpace(mainSpace.did());
+        console.log("current space is main");
+        const delegation = await client.capability.access.claim();
+        setConnectionStatus("Claiming delegations...");
+        console.log("Claimed delegations:", delegation);
         setConnectionStatus("Connected to new spaces");
         setIsConnected(true);
       } catch (createError) {
@@ -240,6 +245,7 @@ const InitialResponseAgent = ({ setCids }) => {
     if (!storachaClient || !space) return false;
 
     try {
+      await storachaClient.capability.access.claim();
       await storachaClient.setCurrentSpace(space.did());
       console.log(`Switched to space: ${space.did()}`);
       return true;
@@ -468,6 +474,7 @@ const InitialResponseAgent = ({ setCids }) => {
       if (toolDecision.includes("web")) {
         console.log("Using web search tool");
         toolUsed = "web_search";
+        setActiveSpace && setActiveSpace("web");
         searchResults = await executeSearch(userMessage, webSearchTool);
 
         // Now combine the search results with the question for the LLM
@@ -495,6 +502,7 @@ const InitialResponseAgent = ({ setCids }) => {
       } else if (toolDecision.includes("scholar")) {
         console.log("Using scholar tool");
         toolUsed = "scholar_search";
+        setActiveSpace && setActiveSpace("scholar");
         searchResults = await executeSearch(userMessage, scholarTool);
 
         // Combine the scholar results with the question
@@ -602,114 +610,327 @@ const InitialResponseAgent = ({ setCids }) => {
     return content;
   };
 
-  return (
-    <div className="flex flex-col bg-black text-white p-4 rounded-lg h-full max-h-[600px]">
-      <h2 className="text-xl font-bold mb-4">Initial Response Agent</h2>
+  // return (
+  //   <div className="flex flex-col bg-black text-white p-4 rounded-lg h-full max-h-[600px]">
+  //     <h2 className="text-xl font-bold mb-4">Initial Response Agent</h2>
 
-      {/* Status indicators with improved space information */}
-      <div className="mb-2">
-        <p
-          className={`text-sm ${
-            isConnected ? "text-green-400" : "text-yellow-400"
-          }`}
-        >
-          {connectionStatus}
-        </p>
-        {isConnected && (
-          <p className="text-xs text-gray-400">
-            Spaces: Main + Web + Scholar (
-            {currentSpace && webSpace && scholarSpace
-              ? "All ready"
-              : "Setting up..."}
-            )
-          </p>
-        )}
-        {isUploading && <p className="text-sm text-blue-400">{uploadStatus}</p>}
+  //     {/* Status indicators with improved space information */}
+  //     <div className="mb-2">
+  //       <p
+  //         className={`text-sm ${
+  //           isConnected ? "text-green-400" : "text-yellow-400"
+  //         }`}
+  //       >
+  //         {connectionStatus}
+  //       </p>
+  //       {isConnected && (
+  //         <p className="text-xs text-gray-400">
+  //           Spaces: Main + Web + Scholar (
+  //           {currentSpace && webSpace && scholarSpace
+  //             ? "All ready"
+  //             : "Setting up..."}
+  //           )
+  //         </p>
+  //       )}
+  //       {isUploading && <p className="text-sm text-blue-400">{uploadStatus}</p>}
+  //     </div>
+
+  //     {/* Chat messages area */}
+  //     <div
+  //       id="chat-container"
+  //       className="flex-grow overflow-y-auto mb-4 p-2 bg-gray-900 rounded-lg"
+  //       style={{ minHeight: "300px" }}
+  //     >
+  //       {chatMessages.length === 0 ? (
+  //         <div className="flex items-center justify-center h-full text-gray-500">
+  //           <p>Start a conversation...</p>
+  //         </div>
+  //       ) : (
+  //         <div className="flex flex-col space-y-4">
+  //           {chatMessages.map((msg, index) => (
+  //             <div
+  //               key={index}
+  //               className={`${
+  //                 msg.role === "user"
+  //                   ? "bg-blue-900 ml-8"
+  //                   : msg.role === "assistant"
+  //                   ? "bg-gray-800 mr-8"
+  //                   : msg.role === "thinking"
+  //                   ? "bg-gray-700 text-gray-300 mr-8 italic"
+  //                   : "bg-red-900 mx-8"
+  //               } p-3 rounded-lg`}
+  //             >
+  //               <p className="text-xs font-semibold mb-1 text-gray-400">
+  //                 {msg.role === "user"
+  //                   ? "You"
+  //                   : msg.role === "assistant"
+  //                   ? "AI Assistant"
+  //                   : msg.role === "thinking"
+  //                   ? "AI"
+  //                   : "System"}
+  //               </p>
+  //               <div className="whitespace-pre-wrap">
+  //                 {formatMessage(msg.content)}
+  //               </div>
+  //             </div>
+  //           ))}
+  //         </div>
+  //       )}
+  //     </div>
+
+  //     {/* Input Area */}
+  //     <div className="flex items-center space-x-2">
+  //       <div className="flex-grow relative">
+  //         <input
+  //           type="text"
+  //           value={inputMessage}
+  //           onChange={(e) => setInputMessage(e.target.value)}
+  //           onKeyPress={(e) =>
+  //             e.key === "Enter" &&
+  //             !isLoading &&
+  //             isConnected &&
+  //             handleSendMessage()
+  //           }
+  //           placeholder={
+  //             !isConnected
+  //               ? "Connecting..."
+  //               : isLoading
+  //               ? "Processing..."
+  //               : "Ask anything"
+  //           }
+  //           disabled={isLoading || !isConnected}
+  //           className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
+  //             isLoading || !isConnected ? "opacity-50" : ""
+  //           }`}
+  //         />
+  //       </div>
+  //       <button
+  //         onClick={handleSendMessage}
+  //         disabled={!inputMessage.trim() || isLoading || !isConnected}
+  //         className={`${
+  //           !inputMessage.trim() || isLoading || !isConnected
+  //             ? "bg-gray-600 cursor-not-allowed"
+  //             : "bg-blue-600 hover:bg-blue-700"
+  //         } p-2 rounded-full`}
+  //       >
+  //         <Send size={20} />
+  //       </button>
+  //     </div>
+  //   </div>
+  // );
+  return (
+    <div className="flex flex-col h-full bg-gray-950 text-white">
+      {/* Header with gradient accent */}
+      <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-950 border-b border-gray-800 shadow-md">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
+              AI Assistant
+            </h1>
+            <p
+              className={`text-xs mt-1 flex items-center ${
+                isConnected
+                  ? "text-green-400"
+                  : connectionStatus.includes("failed")
+                  ? "text-red-400"
+                  : "text-yellow-400"
+              }`}
+            >
+              <span
+                className={`inline-block w-2 h-2 rounded-full mr-1 ${
+                  isConnected
+                    ? "bg-green-400"
+                    : connectionStatus.includes("failed")
+                    ? "bg-red-400"
+                    : "bg-yellow-400"
+                }`}
+              ></span>
+              {connectionStatus}
+            </p>
+            {isUploading && (
+              <p className="text-xs text-blue-400 flex items-center mt-1">
+                <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-pulse mr-1"></span>
+                {uploadStatus}
+              </p>
+            )}
+          </div>
+          <div className="flex space-x-2">
+            <button className="transition-colors duration-200 hover:bg-gray-800 p-2 rounded-full">
+              <Search size={18} className="text-gray-400 hover:text-white" />
+            </button>
+            <button className="transition-colors duration-200 hover:bg-gray-800 p-2 rounded-full">
+              <Mic size={18} className="text-gray-400 hover:text-white" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Chat messages area */}
+      {/* Messages container with improved scrolling */}
       <div
         id="chat-container"
-        className="flex-grow overflow-y-auto mb-4 p-2 bg-gray-900 rounded-lg"
-        style={{ minHeight: "300px" }}
+        className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900 px-4 py-3"
       >
-        {chatMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <p>Start a conversation...</p>
-          </div>
-        ) : (
-          <div className="flex flex-col space-y-4">
-            {chatMessages.map((msg, index) => (
-              <div
-                key={index}
-                className={`${
-                  msg.role === "user"
-                    ? "bg-blue-900 ml-8"
-                    : msg.role === "assistant"
-                    ? "bg-gray-800 mr-8"
-                    : msg.role === "thinking"
-                    ? "bg-gray-700 text-gray-300 mr-8 italic"
-                    : "bg-red-900 mx-8"
-                } p-3 rounded-lg`}
-              >
-                <p className="text-xs font-semibold mb-1 text-gray-400">
-                  {msg.role === "user"
-                    ? "You"
-                    : msg.role === "assistant"
-                    ? "AI Assistant"
-                    : msg.role === "thinking"
-                    ? "AI"
-                    : "System"}
-                </p>
-                <div className="whitespace-pre-wrap">
-                  {formatMessage(msg.content)}
-                </div>
+        <div className="max-w-3xl mx-auto space-y-4 pb-2">
+          {chatMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 text-center">
+              <div className="w-16 h-16 mb-4 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-white"
+                >
+                  <path d="M12 8V4m0 4 3 3m-3-3-3 3M4 13c0 4.4 3.6 8 8 8s8-3.6 8-8a7.9 7.9 0 0 0-8-8"></path>
+                </svg>
               </div>
-            ))}
-          </div>
-        )}
+              <p className="text-gray-400 text-lg font-medium mb-2">
+                Ready for a conversation
+              </p>
+              <p className="text-gray-500 max-w-md">
+                Ask me anything - from general knowledge to specific research
+                questions, I'm here to help.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {chatMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`animate-fade-in max-w-[85%] ${
+                    msg.role === "user"
+                      ? "self-end"
+                      : msg.role === "assistant"
+                      ? "self-start"
+                      : msg.role === "thinking"
+                      ? "self-start opacity-75"
+                      : "self-center"
+                  } mb-4`}
+                >
+                  <div
+                    className={`rounded-2xl px-4 py-3 shadow-md ${
+                      msg.role === "user"
+                        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white"
+                        : msg.role === "assistant"
+                        ? "bg-gray-800 border border-gray-700 text-white"
+                        : msg.role === "thinking"
+                        ? "bg-gray-800 border border-gray-700 text-gray-300"
+                        : "bg-red-900 text-white"
+                    }`}
+                  >
+                    {msg.role === "thinking" && (
+                      <div className="flex items-center mb-2">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce mr-1"></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-150 mr-1"></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-300"></div>
+                      </div>
+                    )}
+                    <div className="whitespace-pre-wrap">
+                      {formatMessage(msg.content)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 px-2">
+                    {msg.role === "user"
+                      ? "You"
+                      : msg.role === "assistant"
+                      ? "AI Assistant"
+                      : msg.role === "thinking"
+                      ? "Processing..."
+                      : "System"}
+                    {" • "}
+                    {new Date().toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Better loading indicator */}
+              {isLoading &&
+                !chatMessages.some((msg) => msg.role === "thinking") && (
+                  <div className="self-start max-w-[85%] mb-4">
+                    <div className="bg-gray-800 border border-gray-700 text-gray-300 rounded-2xl px-4 py-3 shadow-md">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce mr-1"></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-150 mr-1"></div>
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-300"></div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 px-2">
+                      AI Assistant is thinking...
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+          {/* <div ref={messageEndRef} className="h-3" /> Scroll anchor */}
+        </div>
       </div>
 
-      {/* Input Area */}
-      <div className="flex items-center space-x-2">
-        <div className="flex-grow relative">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={(e) =>
-              e.key === "Enter" &&
-              !isLoading &&
-              isConnected &&
-              handleSendMessage()
-            }
-            placeholder={
-              !isConnected
-                ? "Connecting..."
-                : isLoading
-                ? "Processing..."
-                : "Ask anything"
-            }
-            disabled={isLoading || !isConnected}
-            className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
-              isLoading || !isConnected ? "opacity-50" : ""
-            }`}
-          />
+      {/* Input area with improved styling */}
+      <div className="border-t border-gray-800 bg-gray-900 p-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center space-x-2">
+            <button className="text-gray-400 hover:text-white hover:bg-gray-800 p-2 rounded-full transition-colors">
+              <PlusCircle size={20} />
+            </button>
+            <div className="flex-grow relative flex items-center">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={(e) =>
+                  e.key === "Enter" &&
+                  !isLoading &&
+                  isConnected &&
+                  handleSendMessage()
+                }
+                placeholder={
+                  !isConnected
+                    ? "Connecting to Storacha..."
+                    : isLoading
+                    ? "Please wait..."
+                    : "Ask anything..."
+                }
+                disabled={isLoading || !isConnected}
+                className={`w-full bg-gray-800 text-white px-4 py-3 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-700 ${
+                  isLoading || !isConnected ? "opacity-50" : ""
+                }`}
+              />
+              <div className="absolute right-3 flex space-x-1">
+                <button className="text-gray-400 hover:text-white p-1.5 rounded-full transition-colors">
+                  <Globe size={18} />
+                </button>
+                <button className="text-gray-400 hover:text-white p-1.5 rounded-full transition-colors">
+                  <Lightbulb size={18} />
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isLoading || !isConnected}
+              className={`p-3 rounded-full transition-all ${
+                !inputMessage.trim() || isLoading || !isConnected
+                  ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-blue-500/20"
+              }`}
+            >
+              <Send size={18} />
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleSendMessage}
-          disabled={!inputMessage.trim() || isLoading || !isConnected}
-          className={`${
-            !inputMessage.trim() || isLoading || !isConnected
-              ? "bg-gray-600 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
-          } p-2 rounded-full`}
-        >
-          <Send size={20} />
-        </button>
       </div>
     </div>
   );
 };
 
 export default InitialResponseAgent;
+// };
+
+// export default InitialResponseAgent;
