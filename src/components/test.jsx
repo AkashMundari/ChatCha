@@ -65,13 +65,13 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
       // Initialize search tools
       const webSearchToolInstance = new TavilySearchResults({
         maxResults: 2,
-        apiKey: "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",
+        apiKey: "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",
       });
       setWebSearchTool(webSearchToolInstance);
 
       const scholarToolInstance = new SERPGoogleScholarAPITool({
         apiKey:
-          "d033f92170d893fb5f23a0a9753c6d3e2134647cba08c93360828ef375aac527",
+          "349e84de0f1ca9b3ec49be83b9c4fe7b6420ec3fe40e2f6394a585cc0d896669",
       });
       setScholarTool(scholarToolInstance);
 
@@ -725,7 +725,7 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
-              AI Assistant
+              AI Web Scholar
             </h1>
             <p
               className={`text-xs mt-1 flex items-center ${
