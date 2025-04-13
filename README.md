@@ -75,6 +75,7 @@ For each query, ChatCha stores four key artifacts:
 | Frontend           | Tailwind CSS + ReactJS |
 
 ## Demo Video
+**Coming Soon**
 
 
 ## Project Structure
