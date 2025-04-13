@@ -135,7 +135,12 @@ https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.lin
 | Frontend                                |         ✅        | Tailwind CSS + React                              |
 | Launch in 3 minutes or less             |         ✅        |                     Yes                              |
 
+## Links
+### Presentation : https://www.canva.com/design/DAGkU4BoctY/z2dbw7cOerUCVRhsgsCz8A/edit?utm_content=DAGkU4BoctY&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+
 ---
+
+
 
 
 
