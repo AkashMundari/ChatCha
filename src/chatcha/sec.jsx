@@ -15,7 +15,7 @@ const AnalysisAgent = ({ cids, activeSpace }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [currentSpace, setCurrentSpace] = useState(null);
-
+  const [cidGenerated, setCidGenerated] = useState("");
   // Artifact types for structured storage
   const artifactTypes = {
     INPUT: "input",
@@ -102,10 +102,10 @@ const AnalysisAgent = ({ cids, activeSpace }) => {
         setConnectionStatus("Connected to space");
         setCurrentSpace(targetSpace.did());
 
-        setConnectionStatus(`Connected to ${targetSpace.did()}`);
         console.log(`analyser space created : ${targetSpace.did()}`);
         const delegation = await client.capability.access.claim();
         setConnectionStatus("Claiming delegations...");
+        setConnectionStatus(`Connected to ${targetSpace.did()}`);
         console.log("Claimed delegations:", delegation);
         setIsConnected(true);
       } else {
@@ -347,6 +347,7 @@ FORMAT YOUR RESPONSE USING THIS STRUCTURE (DO NOT MODIFY THESE SECTION HEADERS):
       const uploadResult = await storachaClient.uploadFile(file);
 
       const resultCid = uploadResult.toString();
+      setCidGenerated(resultCid);
       console.log("Analysis uploaded successfully with CID:", resultCid);
       setUploadStatus("Analysis upload complete!");
 
@@ -685,9 +686,7 @@ FORMAT YOUR RESPONSE USING THIS STRUCTURE (DO NOT MODIFY THESE SECTION HEADERS):
           <div className="p-4">
             {cids.length > 0 ? (
               <div className="space-y-2">
-                <div className="text-xs text-gray-400 mb-1">
-                  Content ID (CID's)
-                </div>
+                <div className="text-xs text-gray-400 mb-1">Content ID :</div>
                 <div className="px-3 py-2 bg-gray-900 rounded-md overflow-hidden">
                   <div
                     className={`font-mono text-xs truncate ${
@@ -702,11 +701,30 @@ FORMAT YOUR RESPONSE USING THIS STRUCTURE (DO NOT MODIFY THESE SECTION HEADERS):
                       href={`https://${cids[cids.length - 1]}.ipfs.w3s.link/`}
                       target="_blank"
                     >
-                      {cids[cids.length - 1]}
+                      Web x Scholar CID : {cids[cids.length - 1]}
                     </a>
                   </div>
                 </div>
-
+                {cidGenerated && cidGenerated.trim() !== "" && (
+                  <div className="px-3 py-2 bg-gray-900 rounded-md overflow-hidden">
+                    <div
+                      className={`font-mono text-xs truncate ${
+                        activeSpace === "web"
+                          ? "text-green-400"
+                          : activeSpace === "scholar"
+                          ? "text-purple-400"
+                          : "text-blue-400"
+                      }`}
+                    >
+                      <a
+                        href={`https://${cidGenerated}.ipfs.w3s.link/`}
+                        target="_blank"
+                      >
+                        Analyser CID: {cidGenerated}
+                      </a>
+                    </div>
+                  </div>
+                )}
                 <div className="text-xs text-gray-500">
                   Total CIDs tracked: {cids.length}
                 </div>

@@ -85,7 +85,7 @@ const MultiAgentSystem = () => {
       <header className="bg-gradient-to-r from-gray-900 to-gray-950 border-b border-gray-800 py-4 px-6 shadow-lg">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
-            Multi-Agent AI System
+            ChatCha AI
           </h1>
 
           {/* Layout toggle buttons */}
