@@ -62,7 +62,7 @@ For each query, ChatCha stores four key artifacts:
 |       Feature      |          Stack         |
 |:------------------:|:----------------------:|
 | AI agent framework | Langchain (Groq)       |
-| AI Model           |         qwen-2.5-32b               |
+| AI Models           |         qwen-2.5-32b  & llama-3.3-70b-versatile             |
 | Storage            | Storacha               |
 | Frontend           | Tailwind CSS + ReactJS |
 
