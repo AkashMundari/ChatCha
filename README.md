@@ -80,6 +80,10 @@ https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.lin
 ## Demo Video
 - Youtube Link ( 3 min ) : https://youtu.be/N1t-bySH3Q0?si=DH-JuBM4mbJWQhr4
 - Youtube Link (Storacha Integration in Detail - 5 min) : https://youtu.be/XYBFjriG5Pg?si=9AyStUBkVHPgqUhS
+  
+### Reference Links from Demo Video
+- Web x Scholar CID : https://bafkreigju46wyofhzqkkefpuj5o2o3bpbe3rs2xx3jxg5ddxugfwmzhosm.ipfs.w3s.link/
+- Analyzer CID : https://bafkreiehrpq6lqypdm3bwwjcjunezqyssphe7qa3xiw53f5g47z35av4gi.ipfs.w3s.link/
 
 
 ## Links
