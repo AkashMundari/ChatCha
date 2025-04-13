@@ -42,7 +42,7 @@ const AnalysisAgent = ({ cids, activeSpace }) => {
     try {
       const llmInstance = new ChatGroq({
         apiKey: "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",
-        model: "qwen-2.5-32b",
+        model: "llama-3.3-70b-versatile",
         temperature: 0,
       });
       setLlm(llmInstance);
