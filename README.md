@@ -78,7 +78,8 @@ https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.lin
 | Frontend           | Tailwind CSS + ReactJS |
 
 ## Demo Video
-**Coming Soon**
+Youtube Link ( 3 min ) : https://youtu.be/N1t-bySH3Q0?si=DH-JuBM4mbJWQhr4
+Youtube Link (Storacha Integration in Detail - 5 min) : https://youtu.be/XYBFjriG5Pg?si=9AyStUBkVHPgqUhS
 
 
 ## Links
