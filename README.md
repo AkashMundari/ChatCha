@@ -56,7 +56,15 @@ For each query, ChatCha stores four key artifacts:
 
 ## Code
 
-*Coming soon*
+### Initializing Storacha Client
+![WhatsApp Image 2025-04-13 at 15 42 24_64e7c35d](https://github.com/user-attachments/assets/783b2b9c-f0e6-42c8-8ec9-688a78a88cc4)
+
+### Creating Spaces
+![Screenshot_2025-04-13_153834 1](https://github.com/user-attachments/assets/39a87a32-9c49-4d7b-bb29-3ca0f15c999e)
+
+### Uploading to spaces
+![Screenshot_2025-04-13_153919 1](https://github.com/user-attachments/assets/6744d8aa-aaad-44dd-999c-ac7d88f54315)
+
 
 ## Technologies Used
 |       Feature      |          Stack         |
@@ -68,7 +76,6 @@ For each query, ChatCha stores four key artifacts:
 
 ## Demo Video
 
-*Coming soon*
 
 ## Project Structure
 
