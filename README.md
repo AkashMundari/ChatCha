@@ -144,7 +144,6 @@ https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.lin
 | Frontend                                |         ✅        | Tailwind CSS + React                              |
 | Launch in 3 minutes or less             |         ✅        |                     Yes                              |
 
-
 ---
 
 
