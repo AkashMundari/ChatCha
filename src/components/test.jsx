@@ -20,10 +20,8 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
   const [connectionStatus, setConnectionStatus] = useState("Initializing...");
   const [isConnected, setIsConnected] = useState(false);
   const [currentSpace, setCurrentSpace] = useState(null);
-  // Add state for web and scholar spaces
   const [webSpace, setWebSpace] = useState(null);
   const [scholarSpace, setScholarSpace] = useState(null);
-  // Add state for chat messages
   const [chatMessages, setChatMessages] = useState([]);
 
   // Artifact types for structured storage
@@ -34,16 +32,11 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
     CONVERSATION: "conversation",
   };
 
-  // Initialize the chat model, tools, and Storacha client on component mount
+  // Initialize the chat model, tools, and Storacha client
   useEffect(() => {
-    // Initialize AI components
     initializeAIComponents();
-
-    // Initialize Storacha client
     initializeStorachaClient();
   }, []);
-
-  // Add effect to scroll to bottom when messages change
   useEffect(() => {
     const chatContainer = document.getElementById("chat-container");
     if (chatContainer) {
@@ -100,19 +93,13 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
   const initializeStorachaClient = async () => {
     try {
       setConnectionStatus("Creating Storacha client...");
-
       // Create client with memory store to persist delegations
       const store = new StoreMemory();
       const client = await create({ store });
-
-      // Immediately set the client to state to avoid null references
       setStorachaClient(client);
-
       if (!client) {
         throw new Error("Failed to create Storacha client");
       }
-
-      // Get the agent DID
       const agentDID = client.agent.did();
       console.log("Agent DID:", agentDID);
 
@@ -120,37 +107,12 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
       setConnectionStatus("Logging in with email...");
       const account = await client.login("avularamswaroop@gmail.com");
 
-      // Explicitly claim delegations for authorization
-      // setConnectionStatus("Claiming delegations...");
-      // try {
-      //   const delegations = await client.capability.access.claim();
-      //   console.log("Claimed delegations:", delegations);
-      // } catch (claimError) {
-      //   console.warn("Delegation claim warning (continuing):", claimError);
-      //   // Continue even if this fails - some versions don't support this method
-      // }
-
       // Create space names with unique timestamps
       const timestamp = Date.now();
       const uniqueSpaceName = `chat-space-${timestamp}`;
       const uniqueWebSpaceName = `chat-web-space-${timestamp}`;
       const uniqueScholarSpaceName = `chat-scholar-space-${timestamp}`;
 
-      // Check for available spaces first
-
-      // if (spaces && spaces.length >= 3) {
-      //   // If we already have at least three spaces, use them
-      //   setConnectionStatus("Using existing spaces...");
-
-      //   setCurrentSpace(spaces[0]);
-      //   setWebSpace(spaces[1]);
-      //   setScholarSpace(spaces[2]);
-
-      //   // Set the first space as current
-      //   await client.setCurrentSpace(spaces[0].did());
-      //   setConnectionStatus(`Connected to existing spaces`);
-      //   setIsConnected(true);
-      // } else {
       setConnectionStatus("Creating new spaces...");
 
       try {
@@ -180,9 +142,6 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         setCurrentSpace(mainSpace);
         setWebSpace(newWebSpace);
         setScholarSpace(newScholarSpace);
-
-        // Start with main space as current
-
         const delegations = await client.capability.access.claim();
         setConnectionStatus("Claiming delegations...");
         console.log("Claimed delegations:", delegations);
@@ -196,44 +155,7 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         setIsConnected(true);
       } catch (createError) {
         console.error("Error creating spaces:", createError);
-
-        // Fallback: try to use existing spaces or create one if needed
-        // const freshSpaces = await client.spaces();
-
-        // const spaces = await client.spaces();
-        // console.log("Available spaces:", spaces);
-
-        // if (spaces.length > 0) {
-        //   // Use existing spaces
-        //   setCurrentSpace(freshSpaces[0]);
-        //   setWebSpace(freshSpaces.length > 1 ? freshSpaces[1] : freshSpaces[0]);
-        //   setScholarSpace(
-        //     freshSpaces.length > 2 ? freshSpaces[2] : freshSpaces[0]
-        //   );
-
-        //   await client.setCurrentSpace(freshSpaces[0].did());
-        //   setIsConnected(true);
-        //   setConnectionStatus("Connected to existing spaces (fallback)");
-        // } else {
-        //   // Create a single space as last resort
-        //   const fallbackSpace = await client.createSpace(
-        //     `space-${Date.now()}`,
-        //     {
-        //       account,
-        //       skipGatewayAuthorization: true,
-        //     }
-        //   );
-
-        //   setCurrentSpace(fallbackSpace);
-        //   setWebSpace(fallbackSpace);
-        //   setScholarSpace(fallbackSpace);
-
-        //   await client.setCurrentSpace(fallbackSpace.did());
-        //   setIsConnected(true);
-        //   setConnectionStatus("Connected to fallback space");
-        // }
       }
-      // }
     } catch (error) {
       console.error("Error initializing Storacha client:", error);
       setConnectionStatus(`Connection failed: ${error.message}`);
@@ -310,7 +232,6 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
     setUploadStatus("Preparing to upload data...");
 
     try {
-      // Create a unique filename with timestamp
       const timestamp = new Date().toISOString();
       const filename = `chat_data_${timestamp}.json`;
 
@@ -325,7 +246,7 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
       // Array to track all CIDs from uploads
       const allCids = [];
 
-      // Always upload to main space
+      //upload to main space
       if (currentSpace) {
         setUploadStatus("Uploading to main space...");
         await switchToSpace(currentSpace);
@@ -336,7 +257,6 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         );
         allCids.push(mainResult.toString());
 
-        // Update the shared CIDs state to trigger the analysis component
         setCids((prevCids) => [...prevCids, mainResult.toString()]);
       }
 
@@ -418,23 +338,16 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
       return;
     }
 
-    // Add user message immediately to the chat history
     const userMessage = inputMessage;
     setChatMessages((prev) => [
       ...prev,
       { role: "user", content: userMessage },
     ]);
-
-    // Clear input field immediately for better UX
     setInputMessage("");
-
     setIsLoading(true);
-
     try {
-      // First, determine if we should use a search tool or just the LLM
+      // determine if we should use a search tool or just the LLM
       console.log("Determining best agent for query:", userMessage);
-
-      // Add thinking indicator to chat messages
       setChatMessages((prev) => [
         ...prev,
         { role: "thinking", content: "Thinking..." },
@@ -573,7 +486,7 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         searchResults
       );
 
-      // Upload the structured data to appropriate spaces based on tool used
+      // Upload the structured data
       if (isConnected) {
         await uploadToStoracha(structuredData, toolUsed);
       } else {
@@ -605,122 +518,13 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
     }
   };
 
-  // Function to format message content with Markdown support
   const formatMessage = (content) => {
     return content;
   };
 
-  // return (
-  //   <div className="flex flex-col bg-black text-white p-4 rounded-lg h-full max-h-[600px]">
-  //     <h2 className="text-xl font-bold mb-4">Initial Response Agent</h2>
-
-  //     {/* Status indicators with improved space information */}
-  //     <div className="mb-2">
-  //       <p
-  //         className={`text-sm ${
-  //           isConnected ? "text-green-400" : "text-yellow-400"
-  //         }`}
-  //       >
-  //         {connectionStatus}
-  //       </p>
-  //       {isConnected && (
-  //         <p className="text-xs text-gray-400">
-  //           Spaces: Main + Web + Scholar (
-  //           {currentSpace && webSpace && scholarSpace
-  //             ? "All ready"
-  //             : "Setting up..."}
-  //           )
-  //         </p>
-  //       )}
-  //       {isUploading && <p className="text-sm text-blue-400">{uploadStatus}</p>}
-  //     </div>
-
-  //     {/* Chat messages area */}
-  //     <div
-  //       id="chat-container"
-  //       className="flex-grow overflow-y-auto mb-4 p-2 bg-gray-900 rounded-lg"
-  //       style={{ minHeight: "300px" }}
-  //     >
-  //       {chatMessages.length === 0 ? (
-  //         <div className="flex items-center justify-center h-full text-gray-500">
-  //           <p>Start a conversation...</p>
-  //         </div>
-  //       ) : (
-  //         <div className="flex flex-col space-y-4">
-  //           {chatMessages.map((msg, index) => (
-  //             <div
-  //               key={index}
-  //               className={`${
-  //                 msg.role === "user"
-  //                   ? "bg-blue-900 ml-8"
-  //                   : msg.role === "assistant"
-  //                   ? "bg-gray-800 mr-8"
-  //                   : msg.role === "thinking"
-  //                   ? "bg-gray-700 text-gray-300 mr-8 italic"
-  //                   : "bg-red-900 mx-8"
-  //               } p-3 rounded-lg`}
-  //             >
-  //               <p className="text-xs font-semibold mb-1 text-gray-400">
-  //                 {msg.role === "user"
-  //                   ? "You"
-  //                   : msg.role === "assistant"
-  //                   ? "AI Assistant"
-  //                   : msg.role === "thinking"
-  //                   ? "AI"
-  //                   : "System"}
-  //               </p>
-  //               <div className="whitespace-pre-wrap">
-  //                 {formatMessage(msg.content)}
-  //               </div>
-  //             </div>
-  //           ))}
-  //         </div>
-  //       )}
-  //     </div>
-
-  //     {/* Input Area */}
-  //     <div className="flex items-center space-x-2">
-  //       <div className="flex-grow relative">
-  //         <input
-  //           type="text"
-  //           value={inputMessage}
-  //           onChange={(e) => setInputMessage(e.target.value)}
-  //           onKeyPress={(e) =>
-  //             e.key === "Enter" &&
-  //             !isLoading &&
-  //             isConnected &&
-  //             handleSendMessage()
-  //           }
-  //           placeholder={
-  //             !isConnected
-  //               ? "Connecting..."
-  //               : isLoading
-  //               ? "Processing..."
-  //               : "Ask anything"
-  //           }
-  //           disabled={isLoading || !isConnected}
-  //           className={`w-full bg-gray-800 text-white p-2 pl-4 pr-10 rounded-full focus:outline-none ${
-  //             isLoading || !isConnected ? "opacity-50" : ""
-  //           }`}
-  //         />
-  //       </div>
-  //       <button
-  //         onClick={handleSendMessage}
-  //         disabled={!inputMessage.trim() || isLoading || !isConnected}
-  //         className={`${
-  //           !inputMessage.trim() || isLoading || !isConnected
-  //             ? "bg-gray-600 cursor-not-allowed"
-  //             : "bg-blue-600 hover:bg-blue-700"
-  //         } p-2 rounded-full`}
-  //       >
-  //         <Send size={20} />
-  //       </button>
-  //     </div>
-  //   </div>
-  // );
   return (
     <div className="flex flex-col h-full bg-gray-950 text-white">
-      {/* Header with gradient accent */}
+      {/* Header */}
       <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-950 border-b border-gray-800 shadow-md">
         <div className="flex justify-between items-center">
           <div>
@@ -765,7 +569,7 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
         </div>
       </div>
 
-      {/* Messages container with improved scrolling */}
+      {/* Messages container */}
       <div
         id="chat-container"
         className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900 px-4 py-3"
@@ -869,11 +673,10 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
                 )}
             </div>
           )}
-          {/* <div ref={messageEndRef} className="h-3" /> Scroll anchor */}
         </div>
       </div>
 
-      {/* Input area with improved styling */}
+      {/* Input area */}
       <div className="border-t border-gray-800 bg-gray-900 p-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center space-x-2">
@@ -931,6 +734,3 @@ const InitialResponseAgent = ({ setCids, setActiveSpace }) => {
 };
 
 export default InitialResponseAgent;
-// };
-
-// export default InitialResponseAgent;

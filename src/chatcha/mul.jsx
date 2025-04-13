@@ -1,32 +1,3 @@
-// import React, { useState } from "react";
-// import InitialResponseAgent from "../components/test";
-// import AnalysisAgent from "./sec";
-
-// const MultiAgentSystem = () => {
-//   // Shared state for CIDs between components
-//   const [cids, setCids] = useState([]);
-
-//   return (
-//     <div className="flex flex-col gap-4 p-4 bg-black min-h-screen">
-//       <h1 className="text-2xl font-bold text-white mb-4">
-//         Multi-Agent AI System
-//       </h1>
-
-//       {/* First agent processes user input but doesn't display results */}
-//       <div className="mb-6">
-//         <InitialResponseAgent setCids={setCids} />
-//       </div>
-
-//       {/* Second agent analyzes and displays the enhanced results */}
-//       <div>
-//         <AnalysisAgent cids={cids} />
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default MultiAgentSystem;
-
 import React, { useState, useEffect } from "react";
 import InitialResponseAgent from "../components/test";
 import AnalysisAgent from "./sec";
@@ -40,48 +11,36 @@ import {
 } from "lucide-react";
 
 const MultiAgentSystem = () => {
-  // Shared state for CIDs between components
   const [cids, setCids] = useState([]);
-  // Track which layout mode is active
   const [layoutMode, setLayoutMode] = useState("split"); // "split", "chat", "analysis"
-  // Track active space for visualization
   const [activeSpace, setActiveSpace] = useState("main");
-  // Animation state for space transition
   const [isSpaceTransitioning, setIsSpaceTransitioning] = useState(false);
-  // Track previous conversations for display
-  // const [conversations, setConversations] = useState([]);
 
-  // Simulate space transitions based on new CIDs being added
   useEffect(() => {
     if (cids.length > 0) {
       const lastCid = cids[cids.length - 1];
 
-      // Show transition animation
       setIsSpaceTransitioning(true);
-
-      // Determine which space based on CID pattern (in real app, this would come from the agent)
       const newSpace = lastCid.includes("web")
         ? "web"
         : lastCid.includes("scholar")
         ? "scholar"
         : "main";
 
-      // Add artificial delay to show the transition animation
       setTimeout(() => {
         setActiveSpace(newSpace);
         setIsSpaceTransitioning(false);
-      }, 800);
+      }, 1900);
     }
   }, [cids]);
 
-  // Toggle between layout modes
   const toggleLayout = (mode) => {
     setLayoutMode(mode);
   };
 
   return (
     <div className="flex flex-col bg-gray-950 min-h-screen overflow-hidden text-white">
-      {/* Header with space visualization */}
+      {/* Header */}
       <header className="bg-gradient-to-r from-gray-900 to-gray-950 border-b border-gray-800 py-4 px-6 shadow-lg">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
