@@ -1,4 +1,4 @@
-# ChatCha: Decentralized AI Agent Platform
+# ChatCha: Decentralized AI Agent Platform 
 
 ## Overview
 
@@ -9,23 +9,23 @@ ChatCha is a decentralized AI agent platform where users can get their queries a
 
 This project uses multiple specialized AI agents to answer user queries based on whether the user is asking for real-time latest data or information from various research papers. The multi-agent architecture ensures comprehensive and accurate responses.
 
-## Agents Used
+## 🤖 Agents Used
 
-### 1. Web Search Agent
+### 1. Web Search Agent 🌐
 
 - Searches the web in real-time
 - Provides up-to-date information on current events and topics
 - Stores search results and processing data in dedicated Storacha space
 
 
-### 2. Scholar Agent
+### 2. Scholar Agent 🎓
 
 - Searches various articles and research papers
 - Provides academic and research-backed information
 - Maintains its own Storacha space for scholarly data storage
 
 
-### 3. Analyzer Agent
+### 3. Analyzer Agent 
 
 - Takes output/data from both Web Search \& Scholar Agents (i.e. from their spaces)
 - Summarizes and synthesizes information from multiple sources
@@ -33,8 +33,7 @@ This project uses multiple specialized AI agents to answer user queries based on
 - Stores analysis data in a separate Storacha space
 
 
-## Storacha Integrations
-
+## Storacha Integrations 🔥
 ### 1. Unique Storacha Spaces
 
 ChatCha creates 4 distinct Storacha Spaces:
@@ -49,19 +48,10 @@ ChatCha creates 4 distinct Storacha Spaces:
 
 For each query, ChatCha stores four key artifacts:
 
-- `input.txt` – Original prompt provided to the agent
-- `output.txt` – Final result data
-- `cot.txt` – Chain of Thought reasoning
-- `metadata.txt` – Timestamp, model info, etc.
-
-These artifacts can be downloaded through the following URLs:
-
-```
-https://{generatorCID}.ipfs.w3s.link/input.txt
-https://{generatorCID}.ipfs.w3s.link/output.txt
-https://{generatorCID}.ipfs.w3s.link/cot.txt
-https://{generatorCID}.ipfs.w3s.link/metadata.txt
-```
+- `input` – Original prompt provided to the agent
+- `output` – Final result data
+- `conversation` – Chain of Thought reasoning
+- `metadata` – Timestamp, model info, etc.
 
 
 ## Code
@@ -72,7 +62,7 @@ https://{generatorCID}.ipfs.w3s.link/metadata.txt
 |       Feature      |          Stack         |
 |:------------------:|:----------------------:|
 | AI agent framework | Langchain (Groq)       |
-| AI Model           |                        |
+| AI Model           |         qwen-2.5-32b               |
 | Storage            | Storacha               |
 | Frontend           | Tailwind CSS + ReactJS |
 
@@ -92,13 +82,13 @@ https://{generatorCID}.ipfs.w3s.link/metadata.txt
 | Create an account and signup for a plan |         ✅        | Created an account on Storacha                    |
 | Use an open-source AI agent framework   |         ✅        | Used Langchain along with open-source LLM         |
 | Create a space                          |         ✅        | Space Created for storing data for various Agents |
-| Upload Data                             |         ✅        |                                                   |
-| Download Data                           |         ✅        |                                                   |
-| Documentation                           |         ✅        | Provided as README.md & PPT                       |
-| Project added to github discussions     |         ✅        |                                                   |
-| Video submission                        |         ✅        |                                                   |
+| Upload Data 3+ items                            |         ✅        |        Data such as input, output, conversation and metadata are uploaded to Storacha                                           |
+| Download Data 3+ items                          |         ✅        |                 User can be able to download input, output, conversation and metadata from Storacha                                  |
+| Documentation                           |         ✅        | Provided as README.md                      |
+| Project added to github discussions     |         ✅        |         Yes                                       |
+| Video submission                        |         ✅        |         Yes                                       |
 | Frontend                                |         ✅        | Tailwind CSS + React                              |
-| Launch in 3 minutes or less             |         ✅        |                                                   |
+| Launch in 3 minutes or less             |         ✅        |           Yes                                       |
 
 ### 2. Spicy AI Collaboration with Storacha Data Storage
 |               Requirements              | Satisfied or Not |                       Notes                       |
@@ -106,13 +96,13 @@ https://{generatorCID}.ipfs.w3s.link/metadata.txt
 | Create an account and signup for a plan |         ✅        | Created an account on Storacha                    |
 | Use an open-source AI agent framework   |         ✅        | Used Langchain along with open-source LLM         |
 | Create a space                          |         ✅        | Space Created for storing data for various Agents |
-| Upload Data                             |         ✅        |                                                   |
-| Download Data                           |         ✅        |                                                   |
-| Documentation                           |         ✅        | Provided as README.md & PPT                       |
-| Project added to github discussions     |         ✅        |                                                   |
-| Video submission                        |         ✅        |                                                   |
+| Upload Data                             |         ✅        |                Data such as input, output, conversation and metadata are uploaded to Storacha                                    |
+| Download Data                           |         ✅        |                            User can be able to download input, output, conversation and metadata from Storacha                       |
+| Documentation                           |         ✅        | Provided as README.md                      |
+| Project added to github discussions     |         ✅        |           Yes                                        |
+| Video submission                        |         ✅        |                      Yes                             |
 | Frontend                                |         ✅        | Tailwind CSS + React                              |
-| Launch in 3 minutes or less             |         ✅        |                                                   |
+| Launch in 3 minutes or less             |         ✅        |                     Yes                              |
 
 ---
 
