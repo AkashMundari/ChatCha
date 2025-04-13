@@ -50,8 +50,11 @@ For each query, ChatCha stores four key artifacts:
 
 - `input` – Original prompt provided to the agent
 - `output` – Final result data
-- `conversation` – Chain of Thought reasoning
+- `conversation` – Conversation between the user and agent 
 - `metadata` – Timestamp, model info, etc.
+
+Have a reference from this URL:
+https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.link/
 
 
 ## Code
