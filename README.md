@@ -79,7 +79,27 @@ For each query, ChatCha stores four key artifacts:
 
 ## Project Structure
 
-*Coming soon*
+```Directory structure:
+└── akashmundari-chatcha/
+    ├── README.md
+    ├── eslint.config.js
+    ├── index.html
+    ├── package.json
+    ├── postcss.config.js
+    ├── tailwind.config.js
+    ├── vite.config.js
+    ├── public/
+    └── src/
+        ├── App.jsx
+        ├── index.css
+        ├── main.jsx
+        ├── assets/
+        ├── chatcha/
+        │   ├── mul.jsx
+        │   └── sec.jsx
+        └── components/
+            └── test.jsx
+```
 
 ## Bounties Targeted
 
