@@ -77,7 +77,7 @@ https://bafkreiaqhxxuum2vsayxdxskxj7adocwwgrscqgbp6ajjj26jzcx6gir2m.ipfs.w3s.lin
 |       Feature      |          Stack         |
 |:------------------:|:----------------------:|
 | AI agent framework | Langchain (Groq)       |
-| AI Models           |         qwen-2.5-32b  & llama-3.3-70b-versatile             |
+| AI Models           |         qwen-2.5-32b            |
 | Storage            | Storacha               |
 | Frontend           | Tailwind CSS + ReactJS |
 
