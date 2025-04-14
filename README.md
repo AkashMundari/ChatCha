@@ -32,6 +32,10 @@ This project uses multiple specialized AI agents to answer user queries based on
 - Delivers concise, coherent final responses to users
 - Stores analysis data in a separate Storacha space
 
+## ChatCha Workflow
+<img width="308" alt="HCW" src="https://github.com/user-attachments/assets/8ab89d40-7f58-4ece-a753-eb2e28798811" />
+
+
 
 ## Storacha Integrations 🔥
 ### 1. Unique Storacha Spaces
