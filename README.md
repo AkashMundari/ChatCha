@@ -33,7 +33,7 @@ This project uses multiple specialized AI agents to answer user queries based on
 - Stores analysis data in a separate Storacha space
 
 ## ChatCha Workflow
-<img width="308" alt="HCW" src="https://github.com/user-attachments/assets/8ab89d40-7f58-4ece-a753-eb2e28798811" />
+<center><img width="750" alt="HCW" src="https://github.com/user-attachments/assets/8ab89d40-7f58-4ece-a753-eb2e28798811" /></center>
 
 
 
